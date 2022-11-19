@@ -123,6 +123,10 @@ repositories {
     flatDir {
         dirs rootProject.file('libs')
     }
+    maven{
+        url "https://egiintel.jfrog.io/artifactory/librealsense"
+    }
     mavenCentral()
+    google()
 }
 

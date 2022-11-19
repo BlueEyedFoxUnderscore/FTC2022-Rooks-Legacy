@@ -32,8 +32,16 @@ dependencies {
     implementation project(':FtcRobotController')
     annotationProcessor files('lib/OpModeAnnotationProcessor.jar')
 
+    // Importing ftclib
     implementation 'org.ftclib.ftclib:core:2.0.1'
 
+    // Importing roadrunner
     implementation 'org.apache.commons:commons-math3:3.6.1'
     implementation 'com.acmerobotics.roadrunner:core:0.5.5'
+
+    // Importing Realsense Library
+    implementation 'com.intel.realsense:librealsense:2.50.0@aar'
+
+    // Importing ZXing
+    implementation 'com.google.zxing:core:3.5.1'
 }
