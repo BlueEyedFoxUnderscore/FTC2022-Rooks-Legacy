@@ -44,4 +44,7 @@ dependencies {
 
     // Importing ZXing
     implementation 'com.google.zxing:core:3.5.1'
+
+    // Image popup
+    implementation 'com.github.chathuralakmal:AndroidImagePopup:1.2.2'
 }
