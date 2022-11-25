@@ -6,12 +6,10 @@ import static org.firstinspires.ftc.teamcode.drive.DriveConstants.*;
 
 // Import teamcode
 
-import org.firstinspires.ftc.teamcode.drive.DriveConstants;
 import org.firstinspires.ftc.teamcode.drive.SampleMecanumDrive;
 
 // Import roadrunner thingies
 import com.acmerobotics.roadrunner.geometry.Pose2d;
-import com.acmerobotics.roadrunner.geometry.Vector2d;
 import com.acmerobotics.roadrunner.trajectory.Trajectory;
 import com.acmerobotics.roadrunner.trajectory.TrajectoryBuilder;
 
@@ -30,8 +28,13 @@ import com.google.zxing.*;
 
 // Import RealSense Library
 import com.intel.realsense.librealsense.*;
+import com.qualcomm.robotcore.hardware.DcMotor;
+import com.qualcomm.robotcore.hardware.DcMotorEx;
+import com.qualcomm.robotcore.hardware.DcMotorSimple;
 
 import java.util.Hashtable;
+
+import ma.phoenix.ftc.cameradebugger.ImageType;
 
 @Autonomous(group="test")
 
@@ -66,25 +69,39 @@ public class ParkingTest extends LinearOpMode {
 
     public static int horizontalBorderSize = 520;
     //public static int horizontalBorderSize = 560;
-    public static int scanStartHoriz = horizontalBorderSize+40;
-    public static int topBorder = 420;
-    public static int bottomBorder = 105;
-    public static int scanWidth = (1280- horizontalBorderSize *2);
-    public static int scanHeight = 720- topBorder - bottomBorder;
+            //public static int scanStartHoriz = horizontalBorderSize+40;
+            //public static int topBorder = 420;
+            //public static int bottomBorder = 105;
+            //public static int scanWidth = (1280- horizontalBorderSize *2);
+            //public static int scanHeight = 720- topBorder - bottomBorder;
 
-    public static int exposure = 40000;
-    public static int gain     = 250;
+    public static int scanStartVert = 0;
+    public static int scanStartHoriz = 0;
+    public static int scanWidth = 1280;
+    public static int scanHeight = 720;
+
+
+    public int exposure = 40000;
+    public int gain     = 120;
 
     private static boolean prevExposure = false;
     private static boolean prevGain     = false;
     private Sensor mSensor = null;
     private Device mDevice = null;
     private String lastbarcode = "";
+
     private int readno=0;
-    boolean reprint=true;
+
+
+
     @Override
     public void runOpMode() throws InterruptedException {
         int parkingSlot;
+        DcMotor lift = hardwareMap.get(DcMotor.class, "lift");
+
+        ((DcMotorEx) lift).setVelocityPIDFCoefficients(0, 0, 0, 12.411);
+        ((DcMotorEx) lift).setPositionPIDFCoefficients(15);
+        // Put initialization blocks here.
         SampleMecanumDrive drive = new SampleMecanumDrive(hardwareMap);
 
         Hashtable<DecodeHintType, Object> hints=new Hashtable<DecodeHintType, Object>();
@@ -112,37 +129,58 @@ public class ParkingTest extends LinearOpMode {
         PipelineProfile pp=null;
 
         // Config the config that configs the pipeline that configs the camera
-        final ImagePopup imagePopUp = new ImagePopup(hardwareMap.appContext);
         try{
             RsContext.init(hardwareMap.appContext);
+            isOpModeActive();
             Config config = new Config();
+            isOpModeActive();
 
             config.enableStream(StreamType.DEPTH, StreamFormat.Z16);
+            isOpModeActive();
             config.enableStream(StreamType.INFRARED, 1, 1280, 720, StreamFormat.Y8, 5);
+            isOpModeActive();
 
             pp=pipeline.start(config, frameQueue::Enqueue);
+            isOpModeActive();
             pp.getDevice().isInAdvancedMode();
+            isOpModeActive();
 
             mDevice = pp.getDevice();
+            isOpModeActive();
             mSensor = mDevice.querySensors().get(0);
+            isOpModeActive();
             if(!mDevice.isInAdvancedMode()) {
                 mDevice.toggleAdvancedMode(true);
             }
 
-            mSensor.setValue(Option.ENABLE_AUTO_EXPOSURE, 1);
-            mSensor.setValue(Option.GAIN, gain);
-            mSensor.setValue(Option.EXPOSURE, exposure);
-
-        } catch (Exception e) {
+            isOpModeActive();
+            mSensor.setValue(Option.ENABLE_AUTO_EXPOSURE, 0);
+            isOpModeActive();
+            mSensor.setValue(Option.GAIN, gain); // Will throw an exception if Auto Exposure mode is on
+            isOpModeActive();
+            mSensor.setValue(Option.EXPOSURE, exposure);  // Will throw an exception if Auto Exposure mode is on
+        }
+        catch (Exception e) {
             e.printStackTrace();
         }
 
 
         waitForStart();
+
+        lift.setDirection(DcMotorSimple.Direction.REVERSE);
+        lift.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
+        lift.setPower(-0.3);
+        lift.setPower(1);
+        lift.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
+        lift.setMode(DcMotor.RunMode.RUN_TO_POSITION);
+        lift.setPower(1);
+
+        lift.setTargetPosition((int) ((5 / 4.409) * 384.5));
+
         int attempt = 0;
 
         TrajectoryBuilder fwd = new TrajectoryBuilder(new Pose2d(), SampleMecanumDrive.getVelocityConstraint(MAX_VEL, MAX_ANG_VEL, TRACK_WIDTH), SampleMecanumDrive.getAccelerationConstraint(MAX_ACCEL));
-        Trajectory fwdtraj = fwd.forward(14).build();
+        Trajectory fwdtraj = fwd.forward(13.75).build();
         drive.followTrajectory(fwdtraj);
 
         while(opModeIsActive()) {
@@ -162,7 +200,6 @@ public class ParkingTest extends LinearOpMode {
                         System.out.println("Gain" + gain);
                         mSensor.setValue(Option.GAIN, gain);
                         prevGain = true;
-                        reprint = true;
                     }
                 } else if(gamepad1.dpad_down){
                     if(!prevGain) {
@@ -170,7 +207,6 @@ public class ParkingTest extends LinearOpMode {
                         System.out.println("Gain" + gain);
                         mSensor.setValue(Option.GAIN, gain);
                         prevGain = true;
-                        reprint = true;
                     }
                 } else {
                     prevGain = false;
@@ -182,7 +218,6 @@ public class ParkingTest extends LinearOpMode {
                         System.out.println("Exposure" + exposure);
                         mSensor.setValue(Option.EXPOSURE, exposure);
                         prevExposure = true;
-                        reprint = true;
                     }
                 } else if(gamepad1.dpad_left){
                     if(!prevExposure) {
@@ -190,7 +225,6 @@ public class ParkingTest extends LinearOpMode {
                         System.out.println("Exposure" + exposure);
                         mSensor.setValue(Option.EXPOSURE, exposure);
                         prevExposure = true;
-                        reprint = true;
                     }
                 } else {
                     prevExposure = false;
@@ -217,27 +251,39 @@ public class ParkingTest extends LinearOpMode {
                                                         width,
                                                         height,
                                                         scanStartHoriz,
-                                                        topBorder,
+                                                        scanStartVert,
                                                         scanWidth,
                                                         scanHeight,
                                                         false
                                                 )
                                         )
                                 );
-                                if (reprint)
+                                //if (gamepad1.left_bumper)
                                 {
+                                    //System.out.println("Image requested");
                                     BitMatrix blackMatrix = bitmap.getBlackMatrix();
                                     int mWidth=blackMatrix.getWidth();
                                     int mHeight=blackMatrix.getHeight();
-                                    for (int y=0;y<mHeight;y++) {
-                                        StringBuilder line = new StringBuilder();
-                                        for (int x=0;x<mWidth;x++) {
-                                            if (blackMatrix.get(x, y)) line.append("██"); else line.append("  ");
+
+                                    int bytesPerRow = ((mWidth + 7) / 8);
+                                    byte[] frameBufferMonochrome = new byte[bytesPerRow * mHeight];
+
+                                    for (int y=0; y < mHeight; y++) {
+                                        for (int x=0; x < bytesPerRow; x++ ) {
+                                            frameBufferMonochrome[bytesPerRow*y + x] = (byte)(
+                                                ((x*8 + 0 < mWidth) ? (blackMatrix.get(x*8+0, y) ? 1<<7: 0) : 0)+
+                                                ((x*8 + 1 < mWidth) ? (blackMatrix.get(x*8+1, y) ? 1<<6: 0) : 0)+
+                                                ((x*8 + 2 < mWidth) ? (blackMatrix.get(x*8+2, y) ? 1<<5: 0) : 0)+
+                                                ((x*8 + 3 < mWidth) ? (blackMatrix.get(x*8+3, y) ? 1<<4: 0) : 0)+
+                                                ((x*8 + 4 < mWidth) ? (blackMatrix.get(x*8+4, y) ? 1<<3: 0) : 0)+
+                                                ((x*8 + 5 < mWidth) ? (blackMatrix.get(x*8+5, y) ? 1<<2: 0) : 0)+
+                                                ((x*8 + 6 < mWidth) ? (blackMatrix.get(x*8+6, y) ? 1<<1: 0) : 0)+
+                                                ((x*8 + 7 < mWidth) ? (blackMatrix.get(x*8+7, y) ? 1<<0: 0) : 0)
+                                            );
                                         }
-                                        line.append("|");
-                                        System.out.println(line);
                                     }
-                                    reprint=false;
+
+                                    ma.phoenix.ftc.cameradebugger.ImageTransmitter.transmitImage(ImageType.MONOCHROME_Y1, frameBufferMonochrome, mWidth, mHeight);
                                 }
                                 attempt+=1;
 
@@ -248,6 +294,7 @@ public class ParkingTest extends LinearOpMode {
                                 if(!result.getText().isEmpty()) {
                                     break;
                                 }
+
                             }
                         }
                     }
@@ -276,7 +323,7 @@ public class ParkingTest extends LinearOpMode {
         Trajectory trajectory = null;
         while(opModeIsActive()){
             if(Integer.parseInt(result.getText()) == 3){
-                trajectory = builder.strafeRight(24).build();
+                trajectory = builder.strafeRight(15).build();
                 break;
             }
             if(Integer.parseInt(result.getText()) == 2){
@@ -284,7 +331,7 @@ public class ParkingTest extends LinearOpMode {
                 break;
             }
             if(Integer.parseInt(result.getText()) == 1){
-                trajectory = builder.strafeLeft(24).build();
+                trajectory = builder.strafeLeft(15).build();
                 break;
             }
         }
@@ -294,5 +341,11 @@ public class ParkingTest extends LinearOpMode {
             drive.followTrajectory(trajectory);
         }
         pipeline.stop();
+    }
+
+    void isOpModeActive() throws InterruptedException {
+        if(isStopRequested()){
+            throw new InterruptedException();
+        }
     }
 }
