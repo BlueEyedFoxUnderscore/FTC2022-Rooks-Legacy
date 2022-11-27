@@ -23,4 +23,8 @@ android {
     namespace = 'com.qualcomm.ftcrobotcontroller'
 }
 
+dependencies {
+    releaseImplementation files('C:\\Users\\pagzm\\Documents\\_FIRST\\librealsense\\wrappers\\android\\librealsense\\build\\outputs\\aar\\librealsense-release.aar')
+}
+
 apply from: '../build.dependencies.gradle'
