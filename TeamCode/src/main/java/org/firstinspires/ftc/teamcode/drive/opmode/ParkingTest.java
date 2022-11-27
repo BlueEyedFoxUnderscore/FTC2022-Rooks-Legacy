@@ -14,7 +14,6 @@ import com.acmerobotics.roadrunner.trajectory.Trajectory;
 import com.acmerobotics.roadrunner.trajectory.TrajectoryBuilder;
 
 // Import robot general stuff 2.0
-import com.ceylonlabs.imageviewpopup.ImagePopup;
 import com.google.zxing.common.BitMatrix;
 import com.google.zxing.common.HybridBinarizer;
 import com.google.zxing.datamatrix.DataMatrixReader;
@@ -35,6 +34,15 @@ import com.qualcomm.robotcore.hardware.DcMotorSimple;
 import java.util.Hashtable;
 
 import ma.phoenix.ftc.cameradebugger.ImageType;
+import ma.phoenix.ftc.realsensecamera.ConfigurableCamera;
+import ma.phoenix.ftc.realsensecamera.FrameData;
+import ma.phoenix.ftc.realsensecamera.exceptions.NoFrameSetYetAcquired;
+import ma.phoenix.ftc.realsensecamera.exceptions.CameraStartException;
+import ma.phoenix.ftc.realsensecamera.exceptions.CameraStopException;
+import ma.phoenix.ftc.realsensecamera.exceptions.DisconnectedCameraException;
+import ma.phoenix.ftc.realsensecamera.exceptions.FrameQueueCloseException;
+import ma.phoenix.ftc.realsensecamera.exceptions.StreamTypeNotEnabledException;
+import ma.phoenix.ftc.realsensecamera.exceptions.UnsupportedStreamTypeException;
 
 @Autonomous(group="test")
 
@@ -111,59 +119,29 @@ public class ParkingTest extends LinearOpMode {
         Reader reader = new DataMatrixReader();
 
         // Camera res
-        int height = 0;
-        int width = 0;
-
-
-
-        // Frame buffer stuff
-        boolean frameBufferAllocated = false;
-        byte[] frameBuffer = null;
-        FrameQueue frameQueue = new FrameQueue();
-
-        // Telemetry
-        //telemetry = new MultipleTelemetry(telemetry, FtcDashboard.getInstance().getTelemetry());
-
-        // PIPELINE
-        Pipeline pipeline = new Pipeline();
-        PipelineProfile pp=null;
 
         // Config the config that configs the pipeline that configs the camera
-        try{
-            RsContext.init(hardwareMap.appContext);
-            isOpModeActive();
-            Config config = new Config();
-            isOpModeActive();
-
-            config.enableStream(StreamType.DEPTH, StreamFormat.Z16);
-            isOpModeActive();
-            config.enableStream(StreamType.INFRARED, 1, 1280, 720, StreamFormat.Y8, 5);
-            isOpModeActive();
-
-            pp=pipeline.start(config, frameQueue::Enqueue);
-            isOpModeActive();
-            pp.getDevice().isInAdvancedMode();
-            isOpModeActive();
-
-            mDevice = pp.getDevice();
-            isOpModeActive();
-            mSensor = mDevice.querySensors().get(0);
-            isOpModeActive();
-            if(!mDevice.isInAdvancedMode()) {
-                mDevice.toggleAdvancedMode(true);
-            }
-
-            isOpModeActive();
-            mSensor.setValue(Option.ENABLE_AUTO_EXPOSURE, 0);
-            isOpModeActive();
-            mSensor.setValue(Option.GAIN, gain); // Will throw an exception if Auto Exposure mode is on
-            isOpModeActive();
-            mSensor.setValue(Option.EXPOSURE, exposure);  // Will throw an exception if Auto Exposure mode is on
+        ConfigurableCamera camera = null;
+        try {
+            camera = new ConfigurableCamera(hardwareMap);
+        } catch (DisconnectedCameraException e) {
+            throwFatalError("Disconnected camera", e);
         }
-        catch (Exception e) {
-            e.printStackTrace();
-        }
+        
+        Config barcodeConfig = new Config();
+        barcodeConfig.enableStream(StreamType.INFRARED, 1, 1280,720,StreamFormat.Y8,5);
 
+        Config colorConfig = new Config();
+        barcodeConfig.enableStream(StreamType.DEPTH, 1, 1280,720,StreamFormat.Z16,5);
+        barcodeConfig.enableStream(StreamType.COLOR, 1, 1280,720,StreamFormat.Z16,5);
+
+        try {
+            camera.switchConfig(barcodeConfig);
+        } catch (CameraStartException e) {
+            throwFatalError("Camera failed to start", e);
+        } catch (CameraStopException e) {
+            throwFatalError("Camera failed to stop.", e);
+        }
 
         waitForStart();
 
@@ -226,92 +204,86 @@ public class ParkingTest extends LinearOpMode {
                         mSensor.setValue(Option.EXPOSURE, exposure);
                         prevExposure = true;
                     }
+                    
                 } else {
                     prevExposure = false;
                 }
             } catch (Exception e){
             }
-
             try {
-                try (FrameSet frames = frameQueue.pollForFrames()) {
-                    if (frames != null) {
-                        try (Frame frame = frames.first(StreamType.INFRARED, StreamFormat.Y8)) {
-                            if (frame != null) {
-                                VideoFrame videoFrame = frame.as(Extension.VIDEO_FRAME);
-                                if (!frameBufferAllocated) {
-                                    frameBuffer = new byte[videoFrame.getDataSize()];
-                                    height = videoFrame.getHeight();
-                                    width = videoFrame.getWidth();
-                                }
-                                videoFrame.getData(frameBuffer);
-                                BinaryBitmap bitmap = new BinaryBitmap(
-                                        new HybridBinarizer(
-                                                new PlanarYUVLuminanceSource(
-                                                        frameBuffer,
-                                                        width,
-                                                        height,
-                                                        scanStartHoriz,
-                                                        scanStartVert,
-                                                        scanWidth,
-                                                        scanHeight,
-                                                        false
-                                                )
-                                        )
-                                );
-                                //if (gamepad1.left_bumper)
-                                {
-                                    //System.out.println("Image requested");
-                                    BitMatrix blackMatrix = bitmap.getBlackMatrix();
-                                    int mWidth=blackMatrix.getWidth();
-                                    int mHeight=blackMatrix.getHeight();
+                FrameData data;
+                camera.updateFrameSet();
+                data = camera.getImageFrame(StreamType.INFRARED);
+                BinaryBitmap bitmap = new BinaryBitmap(
+                        new HybridBinarizer(
+                                new PlanarYUVLuminanceSource(
+                                        data.getFrameBuffer(),
+                                        data.getWidth(),
+                                        data.getHeight(),
+                                        scanStartHoriz,
+                                        scanStartVert,
+                                        scanWidth,
+                                        scanHeight,
+                                        false
+                                )
+                        )
+                );
+                //if (gamepad1.left_bumper)
+                {
+                    //System.out.println("Image requested");
+                    BitMatrix blackMatrix = bitmap.getBlackMatrix();
+                    int mWidth = blackMatrix.getWidth();
+                    int mHeight = blackMatrix.getHeight();
 
-                                    int bytesPerRow = ((mWidth + 7) / 8);
-                                    byte[] frameBufferMonochrome = new byte[bytesPerRow * mHeight];
+                    int bytesPerRow = ((mWidth + 7) / 8);
+                    byte[] frameBufferMonochrome = new byte[bytesPerRow * mHeight];
 
-                                    for (int y=0; y < mHeight; y++) {
-                                        for (int x=0; x < bytesPerRow; x++ ) {
-                                            frameBufferMonochrome[bytesPerRow*y + x] = (byte)(
-                                                ((x*8 + 0 < mWidth) ? (blackMatrix.get(x*8+0, y) ? 1<<7: 0) : 0)+
-                                                ((x*8 + 1 < mWidth) ? (blackMatrix.get(x*8+1, y) ? 1<<6: 0) : 0)+
-                                                ((x*8 + 2 < mWidth) ? (blackMatrix.get(x*8+2, y) ? 1<<5: 0) : 0)+
-                                                ((x*8 + 3 < mWidth) ? (blackMatrix.get(x*8+3, y) ? 1<<4: 0) : 0)+
-                                                ((x*8 + 4 < mWidth) ? (blackMatrix.get(x*8+4, y) ? 1<<3: 0) : 0)+
-                                                ((x*8 + 5 < mWidth) ? (blackMatrix.get(x*8+5, y) ? 1<<2: 0) : 0)+
-                                                ((x*8 + 6 < mWidth) ? (blackMatrix.get(x*8+6, y) ? 1<<1: 0) : 0)+
-                                                ((x*8 + 7 < mWidth) ? (blackMatrix.get(x*8+7, y) ? 1<<0: 0) : 0)
-                                            );
-                                        }
-                                    }
-
-                                    ma.phoenix.ftc.cameradebugger.ImageTransmitter.transmitImage(ImageType.MONOCHROME_Y1, frameBufferMonochrome, mWidth, mHeight);
-                                }
-                                attempt+=1;
-
-                                result = reader.decode(bitmap, hints);
-                                System.out.println("Barcode text: " + result.getText());
-                                lastbarcode=result.getText()+" read no "+readno++;
-
-                                if(!result.getText().isEmpty()) {
-                                    break;
-                                }
-
-                            }
+                    for (int y = 0; y < mHeight; y++) {
+                        for (int x = 0; x < bytesPerRow; x++) {
+                            frameBufferMonochrome[bytesPerRow * y + x] = (byte) (
+                                    ((x * 8 + 0 < mWidth) ? (blackMatrix.get(x * 8 + 0, y) ? 1 << 7 : 0) : 0) +
+                                            ((x * 8 + 1 < mWidth) ? (blackMatrix.get(x * 8 + 1, y) ? 1 << 6 : 0) : 0) +
+                                            ((x * 8 + 2 < mWidth) ? (blackMatrix.get(x * 8 + 2, y) ? 1 << 5 : 0) : 0) +
+                                            ((x * 8 + 3 < mWidth) ? (blackMatrix.get(x * 8 + 3, y) ? 1 << 4 : 0) : 0) +
+                                            ((x * 8 + 4 < mWidth) ? (blackMatrix.get(x * 8 + 4, y) ? 1 << 3 : 0) : 0) +
+                                            ((x * 8 + 5 < mWidth) ? (blackMatrix.get(x * 8 + 5, y) ? 1 << 2 : 0) : 0) +
+                                            ((x * 8 + 6 < mWidth) ? (blackMatrix.get(x * 8 + 6, y) ? 1 << 1 : 0) : 0) +
+                                            ((x * 8 + 7 < mWidth) ? (blackMatrix.get(x * 8 + 7, y) ? 1 << 0 : 0) : 0)
+                            );
                         }
                     }
-                }
-            }
-            catch (NotFoundException e){
 
-            }
-            catch (Exception e) {
-                e.printStackTrace();
+                    ma.phoenix.ftc.cameradebugger.ImageTransmitter.transmitImage(ImageType.MONOCHROME_Y1, frameBufferMonochrome, mWidth, mHeight);
+                }
+                attempt += 1;
+
+                result = reader.decode(bitmap, hints);
+                System.out.println("Barcode text: " + result.getText());
+                lastbarcode = result.getText() + " read no " + readno++;
+
+                if (!result.getText().isEmpty()) {
+                    break;
+                }
+            } catch (NoFrameSetYetAcquired e) {
+                throwFatalError("We never asked for a frame set", e);
+            } catch (UnsupportedStreamTypeException e) {
+                throwFatalError("Stream type unsupported. How did we get here?", e);
+            } catch (StreamTypeNotEnabledException e) {
+                throwFatalError("Stream type not enabled.", e);
+            } catch (ChecksumException e) {
+                System.out.println("Barcode checksum bad");
+            } catch (NotFoundException e) {
+                System.out.println("Barcode not found");
+            } catch (FormatException e) {
+                System.out.println("Barcode format wrong");
             }
         }
 
         TrajectoryBuilder trajectoryBuilder =  new TrajectoryBuilder(drive.getPoseEstimate(), SampleMecanumDrive.getVelocityConstraint(MAX_VEL, MAX_ANG_VEL, TRACK_WIDTH), SampleMecanumDrive.getAccelerationConstraint(MAX_ACCEL));
 
         Trajectory fwd2 = trajectoryBuilder.forward(11).build();
-        drive.followTrajectory(fwd2);
+        // TODO: reenable
+        //drive.followTrajectory(fwd2);
 
         TrajectoryBuilder builder = new TrajectoryBuilder(
                 fwd2.end(),
@@ -340,12 +312,28 @@ public class ParkingTest extends LinearOpMode {
         if(trajectory != null) {
             drive.followTrajectory(trajectory);
         }
-        pipeline.stop();
+        try {
+            camera.close();
+        } catch (FrameQueueCloseException e) {
+            throwFatalError("Queue failed to close", e);
+        } catch (CameraStopException e){
+            throwFatalError("Camera failed to stop", e);
+        }
     }
 
     void isOpModeActive() throws InterruptedException {
         if(isStopRequested()){
             throw new InterruptedException();
         }
+    }
+    
+    private void throwFatalError(String fatalErrorText, Throwable e) throws InterruptedException {
+        e.printStackTrace();
+        System.out.println("FATAL ERROR: " + fatalErrorText);
+        System.err.println("FATAL ERROR: " + fatalErrorText);
+        telemetry.addData("FATAL ERROR", fatalErrorText);
+        telemetry.update();
+        while(!isStopRequested());
+        throw new InterruptedException("FATAL ERROR: " + fatalErrorText);
     }
 }
