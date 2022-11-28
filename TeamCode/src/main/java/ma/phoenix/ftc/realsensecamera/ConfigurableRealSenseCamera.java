@@ -20,6 +20,8 @@ import com.intel.realsense.librealsense.StreamType;
 import com.intel.realsense.librealsense.VideoFrame;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 
+import java.util.function.BooleanSupplier;
+
 import ma.phoenix.ftc.realsensecamera.exceptions.NoFrameSetYetAcquiredException;
 import ma.phoenix.ftc.realsensecamera.exceptions.CameraStartException;
 import ma.phoenix.ftc.realsensecamera.exceptions.CameraStopException;
@@ -65,7 +67,7 @@ public class ConfigurableRealSenseCamera implements AutoCloseable{
     private FrameSet mCachedFrameSet;
     private boolean mHaveCachedFrameSet = false;
 
-    private Frame mUncastedDepthFrame;
+    private Frame mUnCastedDepthFrame;
     private DepthFrame mCachedDepthFrame;
     private boolean mHaveCachedDepthFrame = false;
 
@@ -76,7 +78,7 @@ public class ConfigurableRealSenseCamera implements AutoCloseable{
 
     public byte[] infraredFrameBuffer = new byte[1];
     private int mInfraredWidth, mInfraredHeight, mInfraredStride;
-    private boolean mHaveCachedInfraredFrameBuffer =false;
+    private boolean mHaveCachedInfraredFrameBuffer = false;
     //
     public byte[] colourFrameBuffer = new byte[1];
     private int mColourWidth, mColourHeight, mColourStride;
@@ -89,20 +91,27 @@ public class ConfigurableRealSenseCamera implements AutoCloseable{
     private int gain = -1;
     private int exp = -1;
 
-    public ConfigurableRealSenseCamera(HardwareMap hardwareMap) throws DisconnectedCameraException, InterruptedException {
+    public ConfigurableRealSenseCamera(HardwareMap hardwareMap, BooleanSupplier isStopRequested) throws DisconnectedCameraException, InterruptedException {
         System.out.println("constructor called");
         System.out.println("initializing context");
         RsContext.init(hardwareMap.appContext);
-        System.out.println("sleeping for one second");
-        Thread.sleep(2000);
-        System.out.println("getting context");
+        //DEBUG: System.out.println("sleeping for two seconds");
+        for(int i = 0; i < 200; i++) {
+            Thread.sleep(10);
+            //DEBUG: System.out.println("testing if stop is requested");
+            if(!isStopRequested.getAsBoolean()){
+                //DEBUG: System.out.println("breaking, stop was requested");
+                break;
+            }
+        }
+        //DEBUG: System.out.println("getting context");
         RsContext context = new RsContext();
-        System.out.println("checking that we don't have zero devices");
+        //System.out.println("checking that we don't have zero devices");
         if(context.queryDevices().getDeviceCount() == 0) throw new DisconnectedCameraException();
     }
 
     public void enableAutoExposure(Boolean enabled){
-        System.out.println("enableAutoExposure() called");
+        //DEBUG: System.out.println("enableAutoExposure() called");
         System.out.println("Setting auto exposure");
         mSensor.setValue(Option.ENABLE_AUTO_EXPOSURE, enabled? 1 : 0);
         if(enabled) return;
@@ -113,13 +122,13 @@ public class ConfigurableRealSenseCamera implements AutoCloseable{
     }
 
     private void start() throws CameraStartException, CameraStopException {
-        System.out.println("start() called");
-        System.out.println("checking if pipeline running");
+        //DEBUG: System.out.println("start() called");
+        // -     System.out.println("checking if pipeline running");
         if(!mPipelineStopped) stop();
         PipelineProfile pipelineProfile;
         assert mHaveConfig: "A config must be set before calling start";
         try{
-            System.out.println("starting pipeline");
+            //DEBUG: System.out.println("starting pipeline");
             pipelineProfile = mPipeline.start(mConfig, mFrameQueue::Enqueue);
         }catch (Exception e) {
             e.printStackTrace();
@@ -133,7 +142,7 @@ public class ConfigurableRealSenseCamera implements AutoCloseable{
         //DEBUG: System.out.println("getting sensor");
         mSensor = mDevice.querySensors().get(0);
         System.out.println("Current frames queue size: "+mSensor.getValue(Option.FRAMES_QUEUE_SIZE));
-        mSensor.setValue(Option.FRAMES_QUEUE_SIZE, 12);
+        mSensor.setValue(Option.FRAMES_QUEUE_SIZE, 12); // How many frames can exist at any one time. (REALLY BADLY NAMED OPTION). (FrameSet (1) + Current stream data (3)) * (1 -> us + 1 -> lib + 1 -> align) = 12
         System.out.println("Current frames queue size: "+mSensor.getValue(Option.FRAMES_QUEUE_SIZE));
         //DEBUG: List<StreamProfile> allActive= mSensor.getActiveStreams();
         // -     for(StreamProfile streamProfile : allActive) {
@@ -209,7 +218,7 @@ public class ConfigurableRealSenseCamera implements AutoCloseable{
         if(newUnalignedFrameSet == null) {
             return false;
         }
-        updateFrameSetDebugString.append("New has "+newUnalignedFrameSet.getSize()+" frames, ");
+        //updateFrameSetDebugString.append("New has "+newUnalignedFrameSet.getSize()+" frames, ");
         //FrameSet alignedFrameSet = newUnalignedFrameSet.applyFilter(alignFilter);
         //FrameSet alignedFrameSet = alignFilter.process(newUnalignedFrameSet);
         //updateFrameSetDebugString.append("after align "+newUnalignedFrameSet.getSize()+" frames ");
@@ -217,7 +226,6 @@ public class ConfigurableRealSenseCamera implements AutoCloseable{
         //newUnalignedFrameSet.close(); // The new frameset has all the frames, but me must close the old one, and it's fine to do it now.
         //updateFrameSetDebugString.append("after close 'new' processed has "+alignedFrameSet.getSize()+"frames. ");
         if(mHaveCachedFrameSet) {
-            updateFrameSetDebugString.append("closed old fs. ");
             mCachedFrameSet.close();
             // No need to set this to false because we're going to immediately
             // repopulate the reference and set haveCachedFrameSet to true.
@@ -225,7 +233,7 @@ public class ConfigurableRealSenseCamera implements AutoCloseable{
         if (mHaveCachedDepthFrame) {
             updateFrameSetDebugString.append("closed old depthframe. ");
             //cachedDepthFrame.close(); Not necessary because this frame does not own the resource.
-            mUncastedDepthFrame.close();
+            mUnCastedDepthFrame.close();
             mHaveCachedDepthFrame =false; /////////// *!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
         }
         mCachedFrameSet = newUnalignedFrameSet;
@@ -250,12 +258,12 @@ public class ConfigurableRealSenseCamera implements AutoCloseable{
         getDepthFrameIfNecessaryDebugString.append("||getDepthFrameIfNecessary() ");
         if(mHaveCachedDepthFrame)return;
         if(!mHaveCachedFrameSet) throw new NoFrameSetYetAcquiredException();
-        mUncastedDepthFrame = mCachedFrameSet.first(StreamType.DEPTH);
-        if(mUncastedDepthFrame == null){
+        mUnCastedDepthFrame = mCachedFrameSet.first(StreamType.DEPTH);
+        if(mUnCastedDepthFrame == null){
             throw new StreamTypeNotEnabledException();
             //getDepthFrameIfNecessaryDebugString.append("Frameset but no depth frame. ");
         }
-        mCachedDepthFrame = mUncastedDepthFrame.as(Extension.DEPTH_FRAME);
+        mCachedDepthFrame = mUnCastedDepthFrame.as(Extension.DEPTH_FRAME);
         //getDepthFrameIfNecessaryDebugString.append("Found new depthframe. ");
         mHaveCachedDepthFrame = true;
     }
@@ -280,11 +288,12 @@ public class ConfigurableRealSenseCamera implements AutoCloseable{
                 if(!mHaveCachedDepthFrameBuffer) {
                     cacheDepthFrameIfNecessary();
                     //getImageFrameDebugString.append("First depth req., called getDepthFrameIfNecessary(), ");
-                    if (depthFrameBuffer.length < mUncastedDepthFrame.getDataSize()) {
+                    if (depthFrameBuffer.length < mCachedDepthFrame.getDataSize()) {
                         getImageFrameDebugString.append("creating depthFrameBuffer, ");
-                        depthFrameBuffer = new byte[mUncastedDepthFrame.getDataSize()];
+                        depthFrameBuffer = new byte[mCachedDepthFrame.getDataSize()];
                     }
-                    mUncastedDepthFrame.getData(depthFrameBuffer);
+                    //DEBUG: System.out.println("getting frame buffer data");
+                    mCachedDepthFrame.getData(depthFrameBuffer);
                     getImageFrameDebugString.append("got depthFrameBuffer");
                     mDepthWidth = mCachedDepthFrame.getWidth();
                     mDepthHeight = mCachedDepthFrame.getHeight();
@@ -381,8 +390,8 @@ public class ConfigurableRealSenseCamera implements AutoCloseable{
                 // UYVY UYVY UYVY UYVYUYVYUYVY
                 //
                 // 1/2 -> 0 * 2 -> 0
-                index = y*mColourStride+(x>>1)<<2; // Get the lowest multiple of 4 address then multiply by 2
-                c = byteToInt(colourFrameBuffer[y*mColourStride+x<<1+1])-16;
+                index = y*mColourStride+(x>>1<<1)*2; // Remove the LSB from the horizontal pixel address, then multiply by 2
+                c = byteToInt(colourFrameBuffer[y*mColourStride+(x<<1)+1])-16;
                 d = byteToInt(colourFrameBuffer[index])-128;
                 e = byteToInt(colourFrameBuffer[index+2])-128;
                 return Color.argb(0,
@@ -390,24 +399,24 @@ public class ConfigurableRealSenseCamera implements AutoCloseable{
                         Math.min(Math.max((298*c-100*d-208*e+128)>>8,0),255),
                         Math.min(Math.max((298*c+516*d+128)>>8,0),255));
             case YUYV:
-                //System.out.println("Getting YUYV, stride = "+colorStride);
-                index = y*mColourStride+(x>>1)<<2; // Get the lowest multiple of 4 address then multiply by 2
-                c = byteToInt(colourFrameBuffer[y*mColourStride+x<<1])-16;
+                //System.out.println("Getting YUYV");
+                index = y*mColourStride+(x>>1<<1)*2; // Remove the LSB from the horizontal pixel address, then multiply by 2
+                c = byteToInt(colourFrameBuffer[y*mColourStride+(x<<1)])-16;
                 d = byteToInt(colourFrameBuffer[index+1])-128;
                 e = byteToInt(colourFrameBuffer[index+3])-128;
-                System.out.println(
-                        " stride: "+ mColourStride +
-                        " index: "+index+
-                        " indexofY: "+(y* mColourStride +((x>>1)<<2))+
-                        " x:"+x+
-                        " y:"+y+
-                        " c:"+c+
-                        " d:"+d+
-                        " e:"+e+
-                        " Y:"+byteToInt(colourFrameBuffer[index+0])+
-                        " U:"+byteToInt(colourFrameBuffer[index+1])+
-                        " Y:"+byteToInt(colourFrameBuffer[index+2])+
-                        " V:"+byteToInt(colourFrameBuffer[index+3]));
+                //System.out.println(
+                //        " stride: "+ mColourStride +
+                //        " index: "+index+
+                //        " index of y: "+(y* mColourStride +((x>>1)<<2))+
+                //        " x:"+x+
+                //        " y:"+y+
+                //        " c:"+c+
+                //        " d:"+d+
+                //        " e:"+e+
+                //        " Y:"+byteToInt(colourFrameBuffer[index+0])+
+                //        " U:"+byteToInt(colourFrameBuffer[index+1])+
+                //        " Y:"+byteToInt(colourFrameBuffer[index+2])+
+                //        " V:"+byteToInt(colourFrameBuffer[index+3]));
                 return Color.argb(0,
                         Math.min(Math.max((298*c+409*e+128)>>8,0),255),
                         Math.min(Math.max((298*c-100*d-208*e+128)>>8,0),255),
@@ -431,7 +440,7 @@ public class ConfigurableRealSenseCamera implements AutoCloseable{
         //DEBUG: System.out.println("closing pipeline");
         if(mHaveCachedFrameSet) mCachedFrameSet.close();
         //DEBUG: System.out.println("closing depthFrame");
-        if(mHaveCachedDepthFrame) mUncastedDepthFrame.close();
+        if(mHaveCachedDepthFrame) mUnCastedDepthFrame.close();
 
         if(!mPipelineStopped) mPipeline.close();
 

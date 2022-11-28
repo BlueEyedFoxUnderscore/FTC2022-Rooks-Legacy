@@ -119,7 +119,7 @@ public class ParkingTest extends LinearOpMode {
         // Camera res
 
         // Config the config that configs the pipeline that configs the camera
-        try (ConfigurableRealSenseCamera camera = new ConfigurableRealSenseCamera(hardwareMap)) {
+        try (ConfigurableRealSenseCamera camera = new ConfigurableRealSenseCamera(hardwareMap, this::isStopRequested)) {
 
             Config barcodeConfig = new Config();
             barcodeConfig.enableStream(StreamType.INFRARED, 1, 1280, 720, StreamFormat.Y8, 5);
