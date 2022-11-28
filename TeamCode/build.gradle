@@ -41,6 +41,7 @@ dependencies {
 
     // Importing Realsense Library
     implementation 'com.intel.realsense:librealsense:2.50.0@aar'
+    //implementation files('C:\\Users\\pagzm\\Documents\\_FIRST\\librealsense\\wrappers\\android\\librealsense\\build\\outputs\\aar\\librealsense-release.aar')
 
     // Importing ZXing
     implementation 'com.google.zxing:core:3.5.1'

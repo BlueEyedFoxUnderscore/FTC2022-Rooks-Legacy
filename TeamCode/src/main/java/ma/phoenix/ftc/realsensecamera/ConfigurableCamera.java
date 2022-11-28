@@ -23,7 +23,7 @@ import com.qualcomm.robotcore.hardware.HardwareMap;
 
 import java.util.List;
 
-import ma.phoenix.ftc.realsensecamera.exceptions.NoFrameSetYetAcquired;
+import ma.phoenix.ftc.realsensecamera.exceptions.NoFramesetAvailable;
 import ma.phoenix.ftc.realsensecamera.exceptions.CameraStartException;
 import ma.phoenix.ftc.realsensecamera.exceptions.CameraStopException;
 import ma.phoenix.ftc.realsensecamera.exceptions.DisconnectedCameraException;
@@ -31,7 +31,30 @@ import ma.phoenix.ftc.realsensecamera.exceptions.FrameQueueCloseException;
 import ma.phoenix.ftc.realsensecamera.exceptions.StreamTypeNotEnabledException;
 import ma.phoenix.ftc.realsensecamera.exceptions.UnsupportedStreamTypeException;
 
+// The current compilable version of the library will crash an FTC robot when the pipeline is closed.
+// 2.5.0 seems to work fine.
+
+// To compile the library, gradele must be installed.  Download gradle from https://gradle.org/
+// Go to the librealsense\wrappers\android folder and execute gradleW assembleRelease.
+
+// To use the version you built, remove the references to the online version from build.common.gradle
+// and the teamcode build.gradlem then add
+// librealsense\wrappers\android\librealsense\build\outputs\aar\librealsense-release.aar
+// as a dependencey to the Teamcode module in file->Project Structure, Dependencies
+// select the Teamcode, hit add, select the jar/aar option, add the file as an "implementation".
+// This will add the line
+// implementation files('C:\\ [other dirs here] \\librealsense\\wrappers\\android\\librealsense\\build\\outputs\\aar\\librealsense-release.aar')
+// to the teamcode build.gradle file.  (You can always add this manually if you wish.)
+
+
+// Do not upgrade the gradle version, or the library will not compile.
+
 public class ConfigurableCamera implements AutoCloseable{
+    StringBuilder updateFrameSetDebugString = new StringBuilder();
+    StringBuilder getDepthFrameIfNecessaryDebugString = new StringBuilder();
+    StringBuilder getDepthDebugString = new StringBuilder();
+    StringBuilder getImageFrameIfNecessaryDebugString = new StringBuilder();
+    StringBuilder getImageFrameDebugString = new StringBuilder();
     private Pipeline pipeline = new Pipeline();
     private boolean pipelineStopped;
 
@@ -41,22 +64,27 @@ public class ConfigurableCamera implements AutoCloseable{
     private Config config;
 
     private FrameQueue frameQueue = new FrameQueue(1);
-    private FrameSet depthAndInfraredFrameSet =null;
-    private FrameSet processedColorFrameSet =null;
-    private DepthFrame depthFrame = null;
-    private int infraredWidth, infraredHeight;
-    private int colorWidth, colorHeight;
-    private int depthWidth, depthHeight;
-    private StreamFormat colorStreamFormat;
+    private FrameSet cachedAlignedFrameSet =null;
+    private boolean haveCachedFrameSet =false;
 
-    private Align align = new Align(StreamType.DEPTH);
+    private Frame cachedDepthFrameRealFrame = null;
+    private DepthFrame cachedDepthFrame = null;
+    private boolean haveCachedDepthFrame = false;
+
+    public byte[] colourFrameBuffer = new byte[1];
+    private int colorWidth, colorHeight, colorStride;
+    private StreamFormat colorStreamFormat;
+    private boolean colorFrameCached =false;
 
     public byte[] infraredFrameBuffer = new byte[1];
-    public byte[] colourFrameBuffer = new byte[1];
+    private int infraredWidth, infraredHeight, infraredStride;
+    private boolean infraredFrameCached =false;
+
     public byte[] depthFrameBuffer = new byte[1];
-    boolean colorFrameCached =false;
-    boolean infraredFrameCached =false;
-    boolean depthFrameCached =false;
+    private int depthWidth, depthHeight, depthStride;
+    private boolean depthFrameBufferCached =false;
+
+    private Align alignFilter = new Align(StreamType.DEPTH); // Align other streams to the depth stream
 
     private int gain = -1;
     private int exp = -1;
@@ -109,7 +137,19 @@ public class ConfigurableCamera implements AutoCloseable{
         }
         System.out.println("getting sensor");
         mSensor = mDevice.querySensors().get(0);
-        mSensor.setValue(Option.FRAMES_QUEUE_SIZE, 1);
+        System.out.println("Current frames queue size: "+mSensor.getValue(Option.FRAMES_QUEUE_SIZE));
+
+        // All Frames and FrameSets must be released via close().  If they are not, the library's internal
+        // cache of frames will be exhausted and the library will stop transmitting images (until additional
+        // frames are released.)  When the pipeline is closed, you will be told how many frames you are
+        // "holding on to".  If the frames are large, the device will run out of memory.  In order to
+        // prevent this possibility, it is necessary to reduce the maxim number of "publishable" frames
+        // "Published" means that the library user has control of the frame.  When the frame is close()ed,
+        // it is unpublished and made available for reuse to the library.
+        // FRAMES_QUEUE_SIZE controls this.
+        //mSensor.setValue(Option.FRAMES_QUEUE_SIZE, 12);
+
+        System.out.println("Current frames queue size: "+mSensor.getValue(Option.FRAMES_QUEUE_SIZE));
         List<StreamProfile> allActive= mSensor.getActiveStreams();
         for(StreamProfile streamProfile : allActive) {
             System.out.println(
@@ -169,117 +209,122 @@ public class ConfigurableCamera implements AutoCloseable{
     }
 
     public boolean updateFrameSet(){
-        FrameSet newColorAndInfraredFrameSet = frameQueue.pollForFrames();
-        if(newColorAndInfraredFrameSet == null) {
+        updateFrameSetDebugString.append("|| updateFrameSet() ");
+        FrameSet unalignedFrameSet = frameQueue.pollForFrames();
+        if(unalignedFrameSet == null) {
             return false;
         }
-        //System.out.println("New frameset");
-        //FrameSet newColorProcessedFrameSet = newColorAndInfraredFrameSet.applyFilter(align);
-        FrameSet newColorProcessedFrameSet = align(newColorAndInfraredFrameSet);
-        //System.out.println("closing old depthFrame");
-        Frame freeFrame;
-        if(depthAndInfraredFrameSet !=null) {
-            while((freeFrame= depthAndInfraredFrameSet.first(StreamType.ANY))!=null)
-            {
-                depthAndInfraredFrameSet.close();
-                System.out.println("Freed a color and infra frame");
-            }
-            depthAndInfraredFrameSet.close();
+        updateFrameSetDebugString.append("New has "+unalignedFrameSet.getSize()+" frames, ");
+        //FrameSet alignedFrameSet = unalignedFrameSet.applyFilter(alignFilter);
+        //FrameSet alignedFrameSet = alignFilter.process(unalignedFrameSet);
+        updateFrameSetDebugString.append("after align "+unalignedFrameSet.getSize()+" frames ");
+        updateFrameSetDebugString.append("proccessed has "+alignedFrameSet.getSize()+" frames ");
+        //unalignedFrameSet.close(); // The new frameset has all the frames, but me must close the old one, and it's fine to do it now.
+        //updateFrameSetDebugString.append("after close 'new' processed has "+alignedFrameSet.getSize()+"frames. ");
+        if(haveCachedFrameSet) {
+            updateFrameSetDebugString.append("closed old fs. ");
+            cachedAlignedFrameSet.close();
+            // No need to set this to false because we're going to immediately
+            // repopulate the reference and set haveCachedFrameSet to true.
         }
-        if(processedColorFrameSet !=null) {
-            while((freeFrame= processedColorFrameSet.first(StreamType.ANY))!=null)
-            {
-                processedColorFrameSet.close();
-                System.out.println("Freed a processedDepthFrameSet frame");
-            }
-            processedColorFrameSet.close();
+        cachedAlignedFrameSet = unalignedFrameSet;
+        if (haveCachedDepthFrame) {
+            updateFrameSetDebugString.append("closed old depthframe. ");
+            //cachedDepthFrame.close();
+            // Not necessary because this frame does not own the resource.
+            cachedDepthFrameRealFrame.close();
+            haveCachedDepthFrame =false;
         }
-        if (depthFrame != null) depthFrame.close();
-        depthFrame=null;
         colorFrameCached =false;
         infraredFrameCached =false;
-        depthFrameCached =false;
-        //System.out.println("saving new frameSet");
-        depthAndInfraredFrameSet = newColorAndInfraredFrameSet;
-        processedColorFrameSet = newColorProcessedFrameSet;
+        depthFrameBufferCached =false;
+        haveCachedFrameSet =true;
+        //System.out.println(updateFrameSetDebugString);
+        //System.out.println(getDepthFrameIfNecessaryDebugString);
+        //System.out.println(getDepthDebugString);
+        //System.out.println(getImageFrameIfNecessaryDebugString);
+        //System.out.println(getImageFrameDebugString);
+        updateFrameSetDebugString=new StringBuilder();
+        getDepthFrameIfNecessaryDebugString=new StringBuilder();
+        getImageFrameIfNecessaryDebugString=new StringBuilder();
+        getDepthDebugString=new StringBuilder();
+        getImageFrameDebugString = new StringBuilder();
         return true;
     }
 
 
-    public float getDistance(int x, int y) throws StreamTypeNotEnabledException, NoFrameSetYetAcquired {
-        //System.out.println("getDistance("+x+", "+y+")"); //848x480
-        //System.out.println("checking to see if depth frame needs updating");
-        if (depthFrame == null) {
-            //System.out.println("in Get Distance, checking for frameset");
-            if(depthAndInfraredFrameSet == null){
-                throw new NoFrameSetYetAcquired();
-            }
-            //System.out.println("checking for depth frame");
-            depthFrame = depthAndInfraredFrameSet.first(StreamType.DEPTH).as(Extension.DEPTH_FRAME);
-            if(depthFrame == null){
-                throw new StreamTypeNotEnabledException();
-            }
+    public void getDepthFrameIfNecessary () throws NoFramesetAvailable, StreamTypeNotEnabledException {
+        getDepthFrameIfNecessaryDebugString.append("||getDepthFrameIfNecessary() ");
+        if (haveCachedDepthFrame) return;
+        if(!haveCachedFrameSet){
+            getDepthFrameIfNecessaryDebugString.append("No frameset. ");
+            throw new NoFramesetAvailable();
         }
-        //if(x==600) System.out.println("getDistance("+x+", "+y+") width: " +depthFrame.getWidth() +" height: "+depthFrame.getHeight() + "=" + depthFrame.getDistance(x, y));
-        return depthFrame.getDistance(x, y);
+        cachedDepthFrameRealFrame = cachedAlignedFrameSet.first(StreamType.DEPTH);
+        if(cachedDepthFrameRealFrame == null){
+            getDepthFrameIfNecessaryDebugString.append("Frameset but no depth frame. ");
+            throw new StreamTypeNotEnabledException();
+        }
+        cachedDepthFrame = cachedDepthFrameRealFrame.as(Extension.DEPTH_FRAME);
+        getDepthFrameIfNecessaryDebugString.append("Found new depthframe. ");
+        haveCachedDepthFrame = true;
     }
 
-    public FrameData getImageFrame(StreamType type) throws UnsupportedStreamTypeException, StreamTypeNotEnabledException, NoFrameSetYetAcquired {
-        //System.out.println("getImageFrame()");
-        if(depthAndInfraredFrameSet == null){
-            throw new NoFrameSetYetAcquired();
+    public float getDistance(int x, int y) throws StreamTypeNotEnabledException, NoFramesetAvailable {
+        getDepthFrameIfNecessaryDebugString.append("||Get distance() called getDepthFrameIfNecessary() ");
+        getDepthFrameIfNecessary();
+        if(x==600) getDepthFrameIfNecessaryDebugString.append("returning ("+x+", "+y+")="+ cachedDepthFrame.getDistance(x, y));
+        return cachedDepthFrame.getDistance(x, y);
+    }
+
+    public FrameData getImageFrame(StreamType type) throws UnsupportedStreamTypeException, StreamTypeNotEnabledException, NoFramesetAvailable {
+        getImageFrameDebugString.append("||getImageFrame() ");
+        if(!haveCachedFrameSet){
+            getImageFrameDebugString.append("No frameset. ");
+            throw new NoFramesetAvailable();
         }
         //System.out.println("checking For Frame");
         switch (type) {
             case DEPTH:
-                if (depthFrame == null){
-                    Frame frame = depthAndInfraredFrameSet.first(type);
-                    //System.out.println("testing if we support it");
-                    //System.out.println("testing if frame exists in frameSet");
-                    if (frame == null) {
-                        throw new StreamTypeNotEnabledException();
+                if (!depthFrameBufferCached) {
+                    getDepthFrameIfNecessary();
+                    getImageFrameDebugString.append("First depth req., called getDepthFrameIfNecessary(), ");
+                    if (depthFrameBuffer.length < cachedDepthFrameRealFrame.getDataSize()) {
+                        getImageFrameDebugString.append("creating depthFrameBuffer, ");
+                        depthFrameBuffer = new byte[cachedDepthFrameRealFrame.getDataSize()];
                     }
-                    depthFrame = frame.as(Extension.DEPTH_FRAME);
-                    frame.close();
-                }
-                //System.out.println("is a depth frame");
-                if (!depthFrameCached) {
-                    //System.out.println("testing frame buffer length");
-                    if (depthFrameBuffer.length < depthFrame.getDataSize()) {
-                        System.out.println("creating frame buffer");
-                        depthFrameBuffer = new byte[depthFrame.getDataSize()];
-                    }
-                    //System.out.println("getting frame buffer data");
-                    depthFrame.getData(depthFrameBuffer);
-                    depthWidth = depthFrame.getWidth();
-                    depthHeight = depthFrame.getHeight();
-                    depthFrameCached = true;
+                    cachedDepthFrameRealFrame.getData(depthFrameBuffer);
+                    getImageFrameDebugString.append("got depthFrameBuffer");
+                    depthWidth = cachedDepthFrame.getWidth();
+                    depthHeight = cachedDepthFrame.getHeight();
+                    depthStride = cachedDepthFrame.getStride();
+                    depthFrameBufferCached = true;
                 }
                 return new FrameData(depthFrameBuffer,
                         depthWidth,
                         depthHeight);
             case COLOR:
                 if (!colorFrameCached) {
-                    try(Frame frame = processedColorFrameSet.first(type)) {
-                        //System.out.println("testing if we support it");
-                        //System.out.println("testing if frame exists in frameSet");
+                    getImageFrameDebugString.append("First color req., ");
+                    try(Frame frame = cachedAlignedFrameSet.first(type)) {
                         if (frame == null) {
+                            getImageFrameDebugString.append("Frame set didn't have a color frame, ");
                             throw new StreamTypeNotEnabledException();
                         }
-                        //System.out.println("color frame found");
-                        //System.out.println("is a color frame");
-                        colorStreamFormat = frame.getProfile().getFormat();
                         if (colourFrameBuffer.length < frame.getDataSize()) {
-                            System.out.println("creating frame buffer");
+                            getImageFrameDebugString.append("creating colourFrameBuffer frame buffer, ");
                             colourFrameBuffer = new byte[frame.getDataSize()];
                         }
-                        //System.out.println("getting frame buffer data");
-                        frame.getData(colourFrameBuffer);
-                        colorFrameCached = true;
                         VideoFrame videoFrame = frame.as(Extension.VIDEO_FRAME);
+                        videoFrame.getData(colourFrameBuffer);
+                        getImageFrameDebugString.append("got colourFrameBuffer ");
+                        colorStreamFormat = videoFrame.getProfile().getFormat();
+                        getImageFrameDebugString.append("format is "+colorStreamFormat);
                         colorWidth = videoFrame.getWidth();
                         colorHeight = videoFrame.getHeight();
-                        videoFrame.close();
+                        colorStride = videoFrame.getStride();
+                        //videoFrame.close(); //not needed because this frame doesn't own the resource
+                        colorFrameCached = true;
                     }
                 }
                 return new FrameData(colourFrameBuffer,
@@ -287,25 +332,24 @@ public class ConfigurableCamera implements AutoCloseable{
                         colorHeight);
             case INFRARED:
                 if(!infraredFrameCached) {
-                    try(Frame frame = depthAndInfraredFrameSet.first(type)) {
-                        //System.out.println("testing if we support it");
-                        //System.out.println("testing if frame exists in frameSet");
+                    getImageFrameDebugString.append("First infrared req., ");
+                    try(Frame frame = cachedAlignedFrameSet.first(type)) {
                         if (frame == null) {
+                            getImageFrameDebugString.append("Frame set didn't have a infrared frame, ");
                             throw new StreamTypeNotEnabledException();
                         }
-                        //System.out.println("is a depth frame");
-                        System.out.println("is a infrared frame");
                         if (infraredFrameBuffer.length < frame.getDataSize()) {
-                            System.out.println("creating frame buffer");
+                            getImageFrameDebugString.append("creating infraredFrameBuffer, ");
                             infraredFrameBuffer = new byte[frame.getDataSize()];
                         }
-                        //System.out.println("getting frame buffer data");
-                        frame.getData(infraredFrameBuffer);
-                        infraredFrameCached =true;
                         VideoFrame videoFrame = frame.as(Extension.VIDEO_FRAME);
+                        videoFrame.getData(infraredFrameBuffer);
+                        getImageFrameDebugString.append("got infraredFrameBuffer");
                         infraredWidth = videoFrame.getWidth();
                         infraredHeight = videoFrame.getHeight();
-                        videoFrame.close();
+                        infraredStride = videoFrame.getStride();
+                        //videoFrame.close(); //not needed because this frame doesn't own the resource
+                        infraredFrameCached =true;
                     }
                 }
                 return new FrameData(infraredFrameBuffer,
@@ -316,11 +360,13 @@ public class ConfigurableCamera implements AutoCloseable{
         }
     }
 
-    public int getARGB(int x, int y) throws UnsupportedStreamTypeException, StreamTypeNotEnabledException, NoFrameSetYetAcquired {
-        //System.out.println("GetARGB("+x+","+y+")");
+    public int getARGB(int x, int y) throws UnsupportedStreamTypeException, StreamTypeNotEnabledException, NoFramesetAvailable {
         if(!colorFrameCached) {
-            //System.out.println("Getting color frame");
             getImageFrame(StreamType.COLOR);
+        }
+        if(!colorFrameCached) {
+            if(haveCachedFrameSet) throw new StreamTypeNotEnabledException();
+            throw new NoFramesetAvailable();
         }
 
         // see https://www.wikiwand.com/en/YUV#Y%E2%80%B2UV444_to_RGB888_conversion
@@ -329,9 +375,9 @@ public class ConfigurableCamera implements AutoCloseable{
         switch (colorStreamFormat)
         {
             case UYVY:
-                //System.out.println("Getting UYVY");
-                index = ((y*colorWidth)+x>>2)<<3; // Get the lowest multiple of 4 address then multiply by 2
-                c = byteToInt(colourFrameBuffer[(((y*colorWidth)+x>>1)<<1)+1])-16;
+                //System.out.println("Getting UYVY, stride = "+colorStride);
+                index = y*colorStride+((x>>2)<<3); // Get the lowest multiple of 4 address then multiply by 2
+                c = byteToInt(colourFrameBuffer[y*colorStride+((x>>1)<<2)+1])-16;
                 d = byteToInt(colourFrameBuffer[index])-128;
                 e = byteToInt(colourFrameBuffer[index+2])-128;
                 return Color.argb(0,
@@ -339,26 +385,31 @@ public class ConfigurableCamera implements AutoCloseable{
                         Math.min(Math.max((298*c-100*d-208*e+128)>>8,0),255),
                         Math.min(Math.max((298*c+516*d+128)>>8,0),255));
             case YUYV:
-                //System.out.println("Getting YUYV");
-                index = ((y*colorWidth)+x>>2)<<3; // Get the lowest multiple of 4 address then multiply by 2
-                c = byteToInt(colourFrameBuffer[(((y*colorWidth)+x>>1)<<2)])-16;
+                //System.out.println("Getting YUYV, stride = "+colorStride);
+                index = y*colorStride+((x>>2)<<3); // Get the lowest multiple of 4 address then multiply by 2
+                c = byteToInt(colourFrameBuffer[y*colorStride+((x>>1)<<2)])-16;
                 d = byteToInt(colourFrameBuffer[index+1])-128;
                 e = byteToInt(colourFrameBuffer[index+3])-128;
-                //System.out.println(
-                //        " c:"+c+
-                //        " d:"+d+
-                //        " e:"+e+
-                //        " Y:"+colourFrameBuffer[index+0] +
-                //        " U:"+colourFrameBuffer[index+1]+
-                //        " Y:"+colourFrameBuffer[index+2]+
-                //        " V:"+colourFrameBuffer[index+3]);
-        return Color.argb(0,
+                System.out.println(
+                        " stride: "+colorStride+
+                        " index: "+index+
+                        " indexofY: "+(y*colorStride+((x>>1)<<2))+
+                        " x:"+x+
+                        " y:"+y+
+                        " c:"+c+
+                        " d:"+d+
+                        " e:"+e+
+                        " Y:"+byteToInt(colourFrameBuffer[index+0])+
+                        " U:"+byteToInt(colourFrameBuffer[index+1])+
+                        " Y:"+byteToInt(colourFrameBuffer[index+2])+
+                        " V:"+byteToInt(colourFrameBuffer[index+3]));
+                return Color.argb(0,
                         Math.min(Math.max((298*c+409*e+128)>>8,0),255),
                         Math.min(Math.max((298*c-100*d-208*e+128)>>8,0),255),
                         Math.min(Math.max((298*c+516*d+128)>>8,0),255));
             case RGB8:
                 System.out.println("Getting RGB");
-                index = ((y*colorWidth)+x)*3; // Get pixel index
+                index = y*colorStride+x*3; // Get pixel index
                 return Color.argb(0,
                         byteToInt(colourFrameBuffer[index]),
                         byteToInt(colourFrameBuffer[index+1]),
@@ -369,21 +420,16 @@ public class ConfigurableCamera implements AutoCloseable{
     }
 
     public void close() throws FrameQueueCloseException, CameraStopException {
-        System.out.println("close() called");
-        System.out.println("closing pipeline");
-        if(pipeline != null) pipeline.close();
-        //System.out.println("calling stop()");
-        //stop();
-        System.out.println("closing frameSet");
-        if(depthAndInfraredFrameSet != null) depthAndInfraredFrameSet.close();
-        System.out.println("closing depthFrame");
-        if(depthFrame!=null) depthFrame.close();
-        System.out.println("closing queue");
+        if(haveCachedDepthFrame) cachedDepthFrameRealFrame.close();
+        if(haveCachedFrameSet) cachedAlignedFrameSet.close();
+        pipeline.stop();
+        pipeline.close();
         try {
             frameQueue.close();
         } catch (Exception e){
             throw new FrameQueueCloseException();
         }
     }
+
     private int byteToInt(byte x) {return x & 0xff;}
 }

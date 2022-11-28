@@ -16,8 +16,6 @@ import com.acmerobotics.roadrunner.trajectory.Trajectory;
 import com.acmerobotics.roadrunner.trajectory.TrajectoryBuilder;
 
 // Import robot general stuff 2.0
-import com.google.zxing.common.BitMatrix;
-import com.google.zxing.common.HybridBinarizer;
 import com.google.zxing.datamatrix.DataMatrixReader;
 import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
@@ -35,10 +33,9 @@ import com.qualcomm.robotcore.hardware.DcMotorSimple;
 
 import java.util.Hashtable;
 
-import ma.phoenix.ftc.cameradebugger.ImageType;
 import ma.phoenix.ftc.realsensecamera.ConfigurableCamera;
 import ma.phoenix.ftc.realsensecamera.FrameData;
-import ma.phoenix.ftc.realsensecamera.exceptions.NoFrameSetYetAcquired;
+import ma.phoenix.ftc.realsensecamera.exceptions.NoFramesetAvailable;
 import ma.phoenix.ftc.realsensecamera.exceptions.CameraStartException;
 import ma.phoenix.ftc.realsensecamera.exceptions.CameraStopException;
 import ma.phoenix.ftc.realsensecamera.exceptions.DisconnectedCameraException;
@@ -160,6 +157,8 @@ public class ParkingTest extends LinearOpMode {
             // TODO
             //drive.followTrajectory(fwdtraj);
 
+            Runtime runtime = Runtime.getRuntime();
+
             while (opModeIsActive()) {
 
                 {
@@ -211,10 +210,11 @@ public class ParkingTest extends LinearOpMode {
                 }
                 try {
                     FrameData data;
-                    Runtime runtime = Runtime.getRuntime();
-                    if (!camera.updateFrameSet()) continue;
+                    if (!camera.updateFrameSet()) {
+                        Thread.sleep(200);
+                        continue;
+                    }
                     //System.out.println(runtime.freeMemory());
-                    System.gc();
                     float minDistance = 1000000.0f;
                     int minx = 0;
                     float distance;
@@ -291,7 +291,7 @@ public class ParkingTest extends LinearOpMode {
                     //                if (!result.getText().isEmpty()) {
                     //                    break;
                     //                }
-                } catch (NoFrameSetYetAcquired e) {
+                } catch (NoFramesetAvailable e) {
                     e.printStackTrace();
                     throwFatalError("We never asked for a frame set", e);
                 } catch (UnsupportedStreamTypeException e) {
