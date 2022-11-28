@@ -51,15 +51,15 @@ public class ConfigurableRealSenseCamera implements AutoCloseable{
 
     private StreamFormat mColourStreamFormat;
 
-    private final Align align = new Align(StreamType.DEPTH);
+    private final Align alignFilter = new Align(StreamType.DEPTH); // Align other streams to the depth stream
 
     public byte[] infraredFrameBuffer = new byte[1];
     private int mInfraredWidth, mInfraredHeight, mInfraredStride;
-    private boolean mHaveCachedColourFrameBuffer = false;
+    private boolean mHaveCachedInfraredFrameBuffer = false;
     //
     public byte[] colourFrameBuffer = new byte[1];
     private int mColourWidth, mColourHeight, mColourStride;
-    private boolean mHaveCachedInfraredFrameBuffer = false;
+    private boolean mHaveCachedColourFrameBuffer = false;
     //
     public byte[] depthFrameBuffer = new byte[1];
     private int mDepthWidth, mDepthHeight, mDepthStride;
