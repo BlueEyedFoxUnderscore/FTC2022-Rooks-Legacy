@@ -35,7 +35,7 @@ import java.util.Hashtable;
 
 import ma.phoenix.ftc.realsensecamera.ConfigurableCamera;
 import ma.phoenix.ftc.realsensecamera.FrameData;
-import ma.phoenix.ftc.realsensecamera.exceptions.NoFramesetAvailable;
+import ma.phoenix.ftc.realsensecamera.exceptions.NoFrameSetYetAcquiredException;
 import ma.phoenix.ftc.realsensecamera.exceptions.CameraStartException;
 import ma.phoenix.ftc.realsensecamera.exceptions.CameraStopException;
 import ma.phoenix.ftc.realsensecamera.exceptions.DisconnectedCameraException;
@@ -291,7 +291,7 @@ public class ParkingTest extends LinearOpMode {
                     //                if (!result.getText().isEmpty()) {
                     //                    break;
                     //                }
-                } catch (NoFramesetAvailable e) {
+                } catch (NoFrameSetYetAcquiredException e) {
                     e.printStackTrace();
                     throwFatalError("We never asked for a frame set", e);
                 } catch (UnsupportedStreamTypeException e) {
