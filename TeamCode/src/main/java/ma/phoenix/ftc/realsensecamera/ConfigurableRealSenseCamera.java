@@ -30,7 +30,7 @@ import ma.phoenix.ftc.realsensecamera.exceptions.FrameQueueCloseException;
 import ma.phoenix.ftc.realsensecamera.exceptions.StreamTypeNotEnabledException;
 import ma.phoenix.ftc.realsensecamera.exceptions.UnsupportedStreamTypeException;
 
-public class ConfigurableCamera implements AutoCloseable{
+public class ConfigurableRealSenseCamera implements AutoCloseable{
     private Pipeline mPipeline = new Pipeline();
     private boolean mPipelineStopped = true;
 
@@ -68,7 +68,7 @@ public class ConfigurableCamera implements AutoCloseable{
     private int gain = -1;
     private int exp = -1;
 
-    public ConfigurableCamera(HardwareMap hardwareMap, BooleanSupplier isStopRequested) throws DisconnectedCameraException, InterruptedException {
+    public ConfigurableRealSenseCamera(HardwareMap hardwareMap, BooleanSupplier isStopRequested) throws DisconnectedCameraException, InterruptedException {
         //DEBUG: System.out.println("constructor called");
         // -System.out.println("initializing context");
         RsContext.init(hardwareMap.appContext);
