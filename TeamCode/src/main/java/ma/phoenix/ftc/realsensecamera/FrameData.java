@@ -4,21 +4,23 @@ package ma.phoenix.ftc.realsensecamera;
 import com.google.zxing.Dimension;
 
 public class FrameData {
-    private byte[] frameBuffer;
+    private byte[] mFrameBuffer;
     private Dimension frameDimensions;
+    private int stride;
 
     public FrameData(byte[] frameBuffer, Dimension frameDimensions){
-        this.frameBuffer = frameBuffer;
+        this.mFrameBuffer = frameBuffer;
         this.frameDimensions = frameDimensions;
     }
 
-    public FrameData(byte[] frameBuffer, int width, int height){
-        this.frameBuffer = frameBuffer;
+    public FrameData(byte[] frameBuffer, int width, int height, int stride){
+        this.mFrameBuffer = frameBuffer;
         this.frameDimensions = new Dimension(width, height);
+        this.stride = stride;
     }
 
     public byte[] getFrameBuffer(){
-        return frameBuffer;
+        return mFrameBuffer;
     }
 
     public Dimension getFrameDimensions(){
@@ -31,5 +33,9 @@ public class FrameData {
 
     public int getHeight(){
         return frameDimensions.getHeight();
+    }
+
+    public int getStride() {
+        return stride;
     }
 }
