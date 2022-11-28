@@ -31,7 +31,7 @@ import ma.phoenix.ftc.realsensecamera.exceptions.StreamTypeNotEnabledException;
 import ma.phoenix.ftc.realsensecamera.exceptions.UnsupportedStreamTypeException;
 
 public class ConfigurableRealSenseCamera implements AutoCloseable{
-    private Pipeline mPipeline = new Pipeline();
+    private final Pipeline mPipeline = new Pipeline();
     private boolean mPipelineStopped = true;
 
     private Device mDevice;
@@ -40,18 +40,18 @@ public class ConfigurableRealSenseCamera implements AutoCloseable{
     private Config mConfig;
     private boolean mHaveConfig = false;
 
-    private FrameQueue mFrameQueue = new FrameQueue(1);
+    private final FrameQueue mFrameQueue = new FrameQueue(1);
     private FrameSet mCachedFrameSet;
     private boolean mHaveCachedFrameSet = false;
 
     private Frame mUncastedDepthFrame;
-    private DepthFrame mDepthFrame;
+    private DepthFrame mCachedDepthFrame;
     private boolean mHaveCachedDepthFrame = false;
 
 
     private StreamFormat mColourStreamFormat;
 
-    private Align align = new Align(StreamType.DEPTH);
+    private final Align align = new Align(StreamType.DEPTH);
 
     public byte[] infraredFrameBuffer = new byte[1];
     private int mInfraredWidth, mInfraredHeight, mInfraredStride;
@@ -190,7 +190,10 @@ public class ConfigurableRealSenseCamera implements AutoCloseable{
             mCachedFrameSet.close();
             //DEBUG: System.out.println("Freed a processedDepthFrameSet frame");
         }
-        if (mHaveCachedDepthFrame) mUncastedDepthFrame.close();
+        if (mHaveCachedDepthFrame) {
+            mUncastedDepthFrame.close();
+            mHaveCachedDepthFrame = false;
+        }
 
         //DEBUG: System.out.println("saving new frameSet");
         mCachedFrameSet = newUnalignedFrameSet;
@@ -206,7 +209,7 @@ public class ConfigurableRealSenseCamera implements AutoCloseable{
         if(!mHaveCachedFrameSet) throw new NoFrameSetYetAcquiredException();
         mUncastedDepthFrame = mCachedFrameSet.first(StreamType.DEPTH);
         if(mUncastedDepthFrame == null) throw new StreamTypeNotEnabledException();
-        mDepthFrame = mUncastedDepthFrame.as(Extension.DEPTH_FRAME);
+        mCachedDepthFrame = mUncastedDepthFrame.as(Extension.DEPTH_FRAME);
         mHaveCachedDepthFrame = true;
     }
 
@@ -215,7 +218,7 @@ public class ConfigurableRealSenseCamera implements AutoCloseable{
         // -     System.out.println("checking to see if depth frame needs updating");
         cacheDepthFrameIfNecessary();
         //DEBUG: if(x==600) System.out.println("getDistance("+x+", "+y+") width: " +depthFrame.getWidth() +" height: "+depthFrame.getHeight() + "=" + depthFrame.getDistance(x, y));
-        return mDepthFrame.getDistance(x, y);
+        return mCachedDepthFrame.getDistance(x, y);
     }
 
     public FrameData getImageFrame(StreamType type) throws UnsupportedStreamTypeException, StreamTypeNotEnabledException, NoFrameSetYetAcquiredException {
@@ -227,15 +230,15 @@ public class ConfigurableRealSenseCamera implements AutoCloseable{
                 if(!mHaveCachedDepthFrameBuffer) {
                     cacheDepthFrameIfNecessary();
                     //DEBUG: System.out.println("testing frame buffer length");
-                    if (depthFrameBuffer.length < mDepthFrame.getDataSize()) {
+                    if (depthFrameBuffer.length < mCachedDepthFrame.getDataSize()) {
                         System.out.println("creating frame buffer");
-                        depthFrameBuffer = new byte[mDepthFrame.getDataSize()];
+                        depthFrameBuffer = new byte[mCachedDepthFrame.getDataSize()];
                     }
                     //DEBUG: System.out.println("getting frame buffer data");
-                    mDepthFrame.getData(depthFrameBuffer);
-                    mDepthWidth = mDepthFrame.getWidth();
-                    mDepthHeight = mDepthFrame.getHeight();
-                    mDepthStride = mDepthFrame.getStride();
+                    mCachedDepthFrame.getData(depthFrameBuffer);
+                    mDepthWidth = mCachedDepthFrame.getWidth();
+                    mDepthHeight = mCachedDepthFrame.getHeight();
+                    mDepthStride = mCachedDepthFrame.getStride();
                     mHaveCachedDepthFrameBuffer = true;
                 }
                 return new FrameData(depthFrameBuffer,
@@ -257,8 +260,8 @@ public class ConfigurableRealSenseCamera implements AutoCloseable{
                             colourFrameBuffer = new byte[frame.getDataSize()];
                         }
                         //DEBUG: System.out.println("getting frame buffer data");
-                        frame.getData(colourFrameBuffer);
                         VideoFrame videoFrame = frame.as(Extension.VIDEO_FRAME);
+                        videoFrame.getData(colourFrameBuffer);
                         mColourWidth = videoFrame.getWidth();
                         mColourHeight = videoFrame.getHeight();
                         mColourStride = videoFrame.getStride();
@@ -286,8 +289,8 @@ public class ConfigurableRealSenseCamera implements AutoCloseable{
                             infraredFrameBuffer = new byte[frame.getDataSize()];
                         }
                         //DEBUG: System.out.println("getting frame buffer data");
-                        frame.getData(infraredFrameBuffer);
                         VideoFrame videoFrame = frame.as(Extension.VIDEO_FRAME);
+                        videoFrame.getData(infraredFrameBuffer);
                         mInfraredWidth = videoFrame.getWidth();
                         mInfraredHeight = videoFrame.getHeight();
                         mInfraredStride = videoFrame.getStride();
@@ -321,8 +324,8 @@ public class ConfigurableRealSenseCamera implements AutoCloseable{
                 // UYVY UYVY UYVY UYVYUYVYUYVY
                 //
                 // 1/2 -> 0 * 2 -> 0
-                index = y*mColourStride+(x>>1)<<2; // Get the lowest multiple of 4 address then multiply by 2
-                c = byteToInt(colourFrameBuffer[y*mColourStride+x>>1+1])-16;
+                index = y*mColourStride+(x>>1<<1)*2; // Remove the LSB from the horizontal pixel address, then multiply by 2
+                c = byteToInt(colourFrameBuffer[y*mColourStride+(x<<1)+1])-16;
                 d = byteToInt(colourFrameBuffer[index])-128;
                 e = byteToInt(colourFrameBuffer[index+2])-128;
                 return Color.argb(0,
@@ -331,18 +334,23 @@ public class ConfigurableRealSenseCamera implements AutoCloseable{
                         Math.min(Math.max((298*c+516*d+128)>>8,0),255));
             case YUYV:
                 //System.out.println("Getting YUYV");
-                index = y*mColourStride+(x>>1)<<2; // Get the lowest multiple of 4 address then multiply by 2
-                c = byteToInt(colourFrameBuffer[y*mColourStride+x>>1])-16;
+                index = y*mColourStride+(x>>1<<1)*2; // Remove the LSB from the horizontal pixel address, then multiply by 2
+                c = byteToInt(colourFrameBuffer[y*mColourStride+(x<<1)])-16;
                 d = byteToInt(colourFrameBuffer[index+1])-128;
                 e = byteToInt(colourFrameBuffer[index+3])-128;
                 //System.out.println(
+                //        " stride: "+ mColourStride +
+                //        " index: "+index+
+                //        " indexofY: "+(y* mColourStride +((x>>1)<<2))+
+                //        " x:"+x+
+                //        " y:"+y+
                 //        " c:"+c+
                 //        " d:"+d+
                 //        " e:"+e+
-                //        " Y:"+colourFrameBuffer[index+0] +
-                //        " U:"+colourFrameBuffer[index+1]+
-                //        " Y:"+colourFrameBuffer[index+2]+
-                //        " V:"+colourFrameBuffer[index+3]);
+                //        " Y:"+byteToInt(colourFrameBuffer[index+0])+
+                //        " U:"+byteToInt(colourFrameBuffer[index+1])+
+                //        " Y:"+byteToInt(colourFrameBuffer[index+2])+
+                //        " V:"+byteToInt(colourFrameBuffer[index+3]));
                 return Color.argb(0,
                         Math.min(Math.max((298*c+409*e+128)>>8,0),255),
                         Math.min(Math.max((298*c-100*d-208*e+128)>>8,0),255),
@@ -366,9 +374,9 @@ public class ConfigurableRealSenseCamera implements AutoCloseable{
         //DEBUG: System.out.println("closing pipeline");
         if(mHaveCachedFrameSet) mCachedFrameSet.close();
         //DEBUG: System.out.println("closing depthFrame");
-        if(mDepthFrame != null) mDepthFrame.close();
+        if(mHaveCachedDepthFrame) mUncastedDepthFrame.close();
         //DEBUG: System.out.println("closing queue");
-        if(mPipeline != null) mPipeline.close();
+        if(!mPipelineStopped) mPipeline.close();
         //DEBUG: System.out.println("closing frameSet");
         try {
             mFrameQueue.close();
