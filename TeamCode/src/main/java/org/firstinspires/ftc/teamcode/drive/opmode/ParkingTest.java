@@ -33,7 +33,7 @@ import com.qualcomm.robotcore.hardware.DcMotorSimple;
 
 import java.util.Hashtable;
 
-import ma.phoenix.ftc.realsensecamera.ConfigurableCamera;
+import ma.phoenix.ftc.realsensecamera.ConfigurableRealSenseCamera;
 import ma.phoenix.ftc.realsensecamera.FrameData;
 import ma.phoenix.ftc.realsensecamera.exceptions.NoFrameSetYetAcquiredException;
 import ma.phoenix.ftc.realsensecamera.exceptions.CameraStartException;
@@ -119,7 +119,7 @@ public class ParkingTest extends LinearOpMode {
         // Camera res
 
         // Config the config that configs the pipeline that configs the camera
-        try (ConfigurableCamera camera = new ConfigurableCamera(hardwareMap)) {
+        try (ConfigurableRealSenseCamera camera = new ConfigurableRealSenseCamera(hardwareMap)) {
 
             Config barcodeConfig = new Config();
             barcodeConfig.enableStream(StreamType.INFRARED, 1, 1280, 720, StreamFormat.Y8, 5);

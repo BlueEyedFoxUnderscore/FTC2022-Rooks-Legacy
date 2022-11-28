@@ -46,13 +46,13 @@ import ma.phoenix.ftc.realsensecamera.exceptions.UnsupportedStreamTypeException;
 
 // Do not upgrade the gradle version, or the library will not compile.
 
-public class ConfigurableCamera implements AutoCloseable{
+public class ConfigurableRealSenseCamera implements AutoCloseable{
     StringBuilder updateFrameSetDebugString = new StringBuilder();
     StringBuilder getDepthFrameIfNecessaryDebugString = new StringBuilder();
     StringBuilder getDepthDebugString = new StringBuilder();
     StringBuilder getImageFrameIfNecessaryDebugString = new StringBuilder();
     StringBuilder getImageFrameDebugString = new StringBuilder();
-    private Pipeline mPipeline = new Pipeline();
+    private final Pipeline mPipeline = new Pipeline();
     private boolean mPipelineStopped = true;
 
     private Device mDevice;
@@ -61,7 +61,7 @@ public class ConfigurableCamera implements AutoCloseable{
     private Config mConfig;
     private boolean mHaveConfig = false;
 
-    private FrameQueue mFrameQueue = new FrameQueue(1);
+    private final FrameQueue mFrameQueue = new FrameQueue(1);
     private FrameSet mCachedFrameSet;
     private boolean mHaveCachedFrameSet = false;
 
@@ -72,7 +72,7 @@ public class ConfigurableCamera implements AutoCloseable{
 
     private StreamFormat mColourStreamFormat;
 
-    private Align alignFilter = new Align(StreamType.DEPTH); // Align other streams to the depth stream
+    private final Align alignFilter = new Align(StreamType.DEPTH); // Align other streams to the depth stream
 
     public byte[] infraredFrameBuffer = new byte[1];
     private int mInfraredWidth, mInfraredHeight, mInfraredStride;
@@ -89,7 +89,7 @@ public class ConfigurableCamera implements AutoCloseable{
     private int gain = -1;
     private int exp = -1;
 
-    public ConfigurableCamera(HardwareMap hardwareMap) throws DisconnectedCameraException, InterruptedException {
+    public ConfigurableRealSenseCamera(HardwareMap hardwareMap) throws DisconnectedCameraException, InterruptedException {
         System.out.println("constructor called");
         System.out.println("initializing context");
         RsContext.init(hardwareMap.appContext);
@@ -212,8 +212,8 @@ public class ConfigurableCamera implements AutoCloseable{
         updateFrameSetDebugString.append("New has "+newUnalignedFrameSet.getSize()+" frames, ");
         //FrameSet alignedFrameSet = newUnalignedFrameSet.applyFilter(alignFilter);
         //FrameSet alignedFrameSet = alignFilter.process(newUnalignedFrameSet);
-        updateFrameSetDebugString.append("after align "+newUnalignedFrameSet.getSize()+" frames ");
-        updateFrameSetDebugString.append("proccessed has "+alignedFrameSet.getSize()+" frames ");
+        //updateFrameSetDebugString.append("after align "+newUnalignedFrameSet.getSize()+" frames ");
+        //updateFrameSetDebugString.append("proccessed has "+alignedFrameSet.getSize()+" frames ");
         //newUnalignedFrameSet.close(); // The new frameset has all the frames, but me must close the old one, and it's fine to do it now.
         //updateFrameSetDebugString.append("after close 'new' processed has "+alignedFrameSet.getSize()+"frames. ");
         if(mHaveCachedFrameSet) {
