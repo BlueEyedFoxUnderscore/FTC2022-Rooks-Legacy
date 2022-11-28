@@ -44,7 +44,7 @@ public class ConfigurableRealSenseCamera implements AutoCloseable{
     private FrameSet mCachedFrameSet;
     private boolean mHaveCachedFrameSet = false;
 
-    private Frame mUncastedDepthFrame;
+    private Frame mUnCastedDepthFrame;
     private DepthFrame mCachedDepthFrame;
     private boolean mHaveCachedDepthFrame = false;
 
@@ -118,7 +118,7 @@ public class ConfigurableRealSenseCamera implements AutoCloseable{
 
         //DEBUG: System.out.println("getting sensor");
         mSensor = mDevice.querySensors().get(0);
-        mSensor.setValue(Option.FRAMES_QUEUE_SIZE, 12); // How many frames can exist at any one time. (REALLY BADLY NAMED OPTION). (Frameset (1) + Current stream data (3)) * (1 -> us + 1 -> lib + 1 -> align) = 12
+        mSensor.setValue(Option.FRAMES_QUEUE_SIZE, 12); // How many frames can exist at any one time. (REALLY BADLY NAMED OPTION). (FrameSet (1) + Current stream data (3)) * (1 -> us + 1 -> lib + 1 -> align) = 12
         //DEBUG: List<StreamProfile> allActive= mSensor.getActiveStreams();
         // -     for(StreamProfile streamProfile : allActive) {
         // -         System.out.println(
@@ -191,7 +191,7 @@ public class ConfigurableRealSenseCamera implements AutoCloseable{
             //DEBUG: System.out.println("Freed a processedDepthFrameSet frame");
         }
         if (mHaveCachedDepthFrame) {
-            mUncastedDepthFrame.close();
+            mUnCastedDepthFrame.close();
             mHaveCachedDepthFrame = false;
         }
 
@@ -207,9 +207,9 @@ public class ConfigurableRealSenseCamera implements AutoCloseable{
     public void cacheDepthFrameIfNecessary() throws NoFrameSetYetAcquiredException, StreamTypeNotEnabledException {
         if(mHaveCachedDepthFrame)return;
         if(!mHaveCachedFrameSet) throw new NoFrameSetYetAcquiredException();
-        mUncastedDepthFrame = mCachedFrameSet.first(StreamType.DEPTH);
-        if(mUncastedDepthFrame == null) throw new StreamTypeNotEnabledException();
-        mCachedDepthFrame = mUncastedDepthFrame.as(Extension.DEPTH_FRAME);
+        mUnCastedDepthFrame = mCachedFrameSet.first(StreamType.DEPTH);
+        if(mUnCastedDepthFrame == null) throw new StreamTypeNotEnabledException();
+        mCachedDepthFrame = mUnCastedDepthFrame.as(Extension.DEPTH_FRAME);
         mHaveCachedDepthFrame = true;
     }
 
@@ -341,7 +341,7 @@ public class ConfigurableRealSenseCamera implements AutoCloseable{
                 //System.out.println(
                 //        " stride: "+ mColourStride +
                 //        " index: "+index+
-                //        " indexofY: "+(y* mColourStride +((x>>1)<<2))+
+                //        " index of y: "+(y* mColourStride +((x>>1)<<2))+
                 //        " x:"+x+
                 //        " y:"+y+
                 //        " c:"+c+
@@ -374,7 +374,7 @@ public class ConfigurableRealSenseCamera implements AutoCloseable{
         //DEBUG: System.out.println("closing pipeline");
         if(mHaveCachedFrameSet) mCachedFrameSet.close();
         //DEBUG: System.out.println("closing depthFrame");
-        if(mHaveCachedDepthFrame) mUncastedDepthFrame.close();
+        if(mHaveCachedDepthFrame) mUnCastedDepthFrame.close();
         //DEBUG: System.out.println("closing queue");
         if(!mPipelineStopped) mPipeline.close();
         //DEBUG: System.out.println("closing frameSet");
