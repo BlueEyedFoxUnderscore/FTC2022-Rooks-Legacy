@@ -8,6 +8,8 @@ import static org.firstinspires.ftc.teamcode.drive.DriveConstants.*;
 
 import android.graphics.Color;
 
+import java.util.SplittableRandom;
+
 import org.firstinspires.ftc.teamcode.drive.SampleMecanumDrive;
 
 // Import roadrunner thingies
@@ -85,6 +87,7 @@ public class ParkingTest extends LinearOpMode {
             //public static int scanWidth = (1280- horizontalBorderSize *2);
             //public static int scanHeight = 720- topBorder - bottomBorder;
 
+    private static final SplittableRandom rng=new SplittableRandom();
     public static int scanStartVert = 0;
     public static int scanStartHoriz = 0;
     public static int scanWidth = 1280;
@@ -96,9 +99,8 @@ public class ParkingTest extends LinearOpMode {
     public int exposure = 40000;
     public int gain     = 120;
 
-    private static boolean prevExposure = false;
+    private static boolean exposureAlreadyChanged = false;
     private static boolean prevGain     = false;
-    private Sensor mSensor = null;
     private String lastbarcode = "";
 
     private int readno=0;
@@ -145,6 +147,22 @@ public class ParkingTest extends LinearOpMode {
                 throwFatalError("Camera failed to stop.", e);
             }
 
+            try {
+                camera.switchConfig(fastConfig);
+            } catch (CameraStartException e) {
+                throwFatalError("Camera failed to start", e);
+            } catch (CameraStopException e) {
+                throwFatalError("Camera failed to stop.", e);
+            }
+
+            try {
+                camera.switchConfig(colorConfig);
+            } catch (CameraStartException e) {
+                throwFatalError("Camera failed to start", e);
+            } catch (CameraStopException e) {
+                throwFatalError("Camera failed to stop.", e);
+            }
+
             waitForStart();
 
             lift.setDirection(DcMotorSimple.Direction.REVERSE);
@@ -163,8 +181,9 @@ public class ParkingTest extends LinearOpMode {
             Trajectory fwdtraj = fwd.forward(13.75).build();
             // TODO
             drive.followTrajectory(fwdtraj);
-
+            Runtime runtime = Runtime.getRuntime();
             while (opModeIsActive()) {
+                System.out.println("Free memory: "+ (runtime.maxMemory() + runtime.freeMemory() - runtime.totalMemory() ) );
 
                 {
                     telemetry.addData("Gain", gain);
@@ -174,45 +193,38 @@ public class ParkingTest extends LinearOpMode {
                     telemetry.update();
                 }
 
-                try {
-                    if (gamepad1.dpad_up) {
-                        if (!prevGain) {
-                            gain += 10;
-                            System.out.println("Gain" + gain);
-                            mSensor.setValue(Option.GAIN, gain);
-                            prevGain = true;
-                        }
-                    } else if (gamepad1.dpad_down) {
-                        if (!prevGain) {
-                            gain -= 10;
-                            System.out.println("Gain" + gain);
-                            mSensor.setValue(Option.GAIN, gain);
-                            prevGain = true;
-                        }
-                    } else {
-                        prevGain = false;
+                if (gamepad1.dpad_up) {
+                    if (!prevGain) {
+                        gain += 10;
+                        System.out.println("Gain" + gain);
+                        camera.setGain(gain);
+                        prevGain = true;
                     }
-
-                    if (gamepad1.dpad_right) {
-                        if (!prevExposure) {
-                            exposure += 1000;
-                            System.out.println("Exposure" + exposure);
-                            mSensor.setValue(Option.EXPOSURE, exposure);
-                            prevExposure = true;
-                        }
-                    } else if (gamepad1.dpad_left) {
-                        if (!prevExposure) {
-                            exposure -= 1000;
-                            System.out.println("Exposure" + exposure);
-                            mSensor.setValue(Option.EXPOSURE, exposure);
-                            prevExposure = true;
-                        }
-
-                    } else {
-                        prevExposure = false;
+                } else if (gamepad1.dpad_down) {
+                    if (!prevGain) {
+                        gain -= 10;
+                        System.out.println("Gain" + gain);
+                        camera.setGain(gain);
+                        prevGain = true;
                     }
-                } catch (Exception e) {
+                } else {
+                    prevGain = false;
                 }
+                if (gamepad1.dpad_right) {
+                    if (!exposureAlreadyChanged) {
+                        exposure += 1000;
+                        System.out.println("Exposure" + exposure);
+                        camera.setExp(exposure);
+                        exposureAlreadyChanged = true;
+                    }
+                } else if (gamepad1.dpad_left) {
+                    if (!exposureAlreadyChanged) {
+                        exposure -= 1000;
+                        System.out.println("Exposure" + exposure);
+                        camera.setExp(exposure);
+                        exposureAlreadyChanged = true;
+                    }
+                } else exposureAlreadyChanged = false;
                 try {
                     FrameData data;
                     if(!camera.updateFrameSet()) continue;
@@ -268,14 +280,14 @@ public class ParkingTest extends LinearOpMode {
                         for (int y = 0; y < mHeight; y++) {
                             for (int x = 0; x < bytesPerRow; x++) {
                                 frameBufferMonochrome[bytesPerRow * y + x] = (byte) (
-                                        ((x * 8 + 0 < mWidth) ? ((byteToInt(buffer[stride*y+x*8+0])>Math.random()*255) ? 1 << 7 : 0) : 0) +
-                                        ((x * 8 + 1 < mWidth) ? ((byteToInt(buffer[stride*y+x*8+1])>Math.random()*255) ? 1 << 6 : 0) : 0) +
-                                        ((x * 8 + 2 < mWidth) ? ((byteToInt(buffer[stride*y+x*8+2])>Math.random()*255) ? 1 << 5 : 0) : 0) +
-                                        ((x * 8 + 3 < mWidth) ? ((byteToInt(buffer[stride*y+x*8+3])>Math.random()*255) ? 1 << 4 : 0) : 0) +
-                                        ((x * 8 + 4 < mWidth) ? ((byteToInt(buffer[stride*y+x*8+4])>Math.random()*255) ? 1 << 3 : 0) : 0) +
-                                        ((x * 8 + 5 < mWidth) ? ((byteToInt(buffer[stride*y+x*8+5])>Math.random()*255) ? 1 << 2 : 0) : 0) +
-                                        ((x * 8 + 6 < mWidth) ? ((byteToInt(buffer[stride*y+x*8+6])>Math.random()*255) ? 1 << 1 : 0) : 0) +
-                                        ((x * 8 + 7 < mWidth) ? ((byteToInt(buffer[stride*y+x*8+7])>Math.random()*255) ? 1 << 0 : 0) : 0)
+                                        ((x * 8 + 0 < mWidth) ? ((byteToInt(buffer[stride*y+x*8+0])>rng.nextInt(255)) ? 1 << 7 : 0) : 0) +
+                                        ((x * 8 + 1 < mWidth) ? ((byteToInt(buffer[stride*y+x*8+1])>rng.nextInt(255)) ? 1 << 6 : 0) : 0) +
+                                        ((x * 8 + 2 < mWidth) ? ((byteToInt(buffer[stride*y+x*8+2])>rng.nextInt(255)) ? 1 << 5 : 0) : 0) +
+                                        ((x * 8 + 3 < mWidth) ? ((byteToInt(buffer[stride*y+x*8+3])>rng.nextInt(255)) ? 1 << 4 : 0) : 0) +
+                                        ((x * 8 + 4 < mWidth) ? ((byteToInt(buffer[stride*y+x*8+4])>rng.nextInt(255)) ? 1 << 3 : 0) : 0) +
+                                        ((x * 8 + 5 < mWidth) ? ((byteToInt(buffer[stride*y+x*8+5])>rng.nextInt(255)) ? 1 << 2 : 0) : 0) +
+                                        ((x * 8 + 6 < mWidth) ? ((byteToInt(buffer[stride*y+x*8+6])>rng.nextInt(255)) ? 1 << 1 : 0) : 0) +
+                                        ((x * 8 + 7 < mWidth) ? ((byteToInt(buffer[stride*y+x*8+7])>rng.nextInt(255)) ? 1 << 0 : 0) : 0)
                                 );
                                 if (y == mHeight/2) frameBufferMonochrome[bytesPerRow * y + x] = (byte)0xff;
                             }

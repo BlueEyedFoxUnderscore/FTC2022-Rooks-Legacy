@@ -31,7 +31,7 @@ import ma.phoenix.ftc.realsensecamera.exceptions.StreamTypeNotEnabledException;
 import ma.phoenix.ftc.realsensecamera.exceptions.UnsupportedStreamTypeException;
 
 public class ConfigurableRealSenseCamera implements AutoCloseable{
-    private final Pipeline mPipeline = new Pipeline();
+    private Pipeline mPipeline = new Pipeline();
     private boolean mPipelineStopped = true;
 
     private Device mDevice;
@@ -68,10 +68,25 @@ public class ConfigurableRealSenseCamera implements AutoCloseable{
     private int gain = -1;
     private int exp = -1;
 
+    long startTime;
+
+    private void resetProfiler(){startTime = System.currentTimeMillis();}
+
+    private void profile(String string)
+    {
+        long endTime = System.currentTimeMillis();
+        System.out.println(string + " took " + (startTime-endTime)+"ms");
+        startTime = System.currentTimeMillis();
+    }
     public ConfigurableRealSenseCamera(HardwareMap hardwareMap, BooleanSupplier isStopRequested) throws DisconnectedCameraException, InterruptedException {
         //DEBUG: System.out.println("constructor called");
         // -System.out.println("initializing context");
+        resetProfiler();
         RsContext.init(hardwareMap.appContext);
+        profile("RsContext.init()");
+        //DEBUG: System.out.println("getting context");
+        RsContext context = new RsContext();
+        profile("new RsContext()");
         //DEBUG: System.out.println("sleeping for two seconds");
         for(int i = 0; i < 200; i++) {
             Thread.sleep(10);
@@ -80,11 +95,14 @@ public class ConfigurableRealSenseCamera implements AutoCloseable{
                 //DEBUG: System.out.println("breaking, stop was requested");
                 break;
             }
+            //DEBUG: System.out.println("checking that we don't have zero devices");
+            if(context.queryDevices().getDeviceCount() != 0)
+            {
+                profile("getDeviceCount != 0");
+                return;
+            }
         }
-        //DEBUG: System.out.println("getting context");
-        RsContext context = new RsContext();
-        //DEBUG: System.out.println("checking that we don't have zero devices");
-        if(context.queryDevices().getDeviceCount() == 0) throw new DisconnectedCameraException();
+        throw new DisconnectedCameraException();
     }
 
     public void enableAutoExposure(Boolean enabled){
@@ -106,7 +124,12 @@ public class ConfigurableRealSenseCamera implements AutoCloseable{
         assert mHaveConfig: "A config must be set before calling start";
         try{
             //DEBUG: System.out.println("starting pipeline");
+            resetProfiler();
+            //mPipeline = new Pipeline();  // TODO: according to online sources, pipeline objects cannot be reused.  (In theory, this is officially a bug.)  Benchmark pipeline creation and test resuing the old one.
+            profile("new mPipeline()");
+            profile("mPipeline.start()");
             pipelineProfile = mPipeline.start(mConfig, mFrameQueue::Enqueue);
+            profile("mPipeline.start()");
         }catch (Exception e) {
             e.printStackTrace();
             throw new CameraStartException();
@@ -137,7 +160,9 @@ public class ConfigurableRealSenseCamera implements AutoCloseable{
         if(mPipelineStopped) return;
         try{
             //DEBUG: System.out.println("Stopping pipeline");
+            resetProfiler();
             mPipeline.stop();
+            profile("mPipeline.stop()");
             //DEBUG: System.out.println("Completed stop");
         } catch (Exception e){
             throw new CameraStopException();
