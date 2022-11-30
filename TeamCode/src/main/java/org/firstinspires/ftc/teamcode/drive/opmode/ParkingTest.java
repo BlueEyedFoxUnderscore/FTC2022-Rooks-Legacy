@@ -1,6 +1,7 @@
 package org.firstinspires.ftc.teamcode.drive.opmode;
 
 //Import robot general stuff
+
 import static org.firstinspires.ftc.teamcode.drive.DriveConstants.*;
 
 
@@ -37,6 +38,7 @@ import com.qualcomm.robotcore.hardware.DcMotorSimple;
 
 import java.util.Hashtable;
 
+import ma.phoenix.ftc.cameradebugger.ImageTransmitter;
 import ma.phoenix.ftc.cameradebugger.ImageType;
 import ma.phoenix.ftc.realsensecamera.ConfigurableRealSenseCamera;
 import ma.phoenix.ftc.realsensecamera.FrameData;
@@ -48,7 +50,7 @@ import ma.phoenix.ftc.realsensecamera.exceptions.FrameQueueCloseException;
 import ma.phoenix.ftc.realsensecamera.exceptions.StreamTypeNotEnabledException;
 import ma.phoenix.ftc.realsensecamera.exceptions.UnsupportedStreamTypeException;
 
-@Autonomous(group="test")
+@Autonomous(group = "test")
 
 
 public class ParkingTest extends LinearOpMode {
@@ -81,13 +83,13 @@ public class ParkingTest extends LinearOpMode {
 
     public static int horizontalBorderSize = 520;
     //public static int horizontalBorderSize = 560;
-            //public static int scanStartHoriz = horizontalBorderSize+40;
-            //public static int topBorder = 420;
-            //public static int bottomBorder = 105;
-            //public static int scanWidth = (1280- horizontalBorderSize *2);
-            //public static int scanHeight = 720- topBorder - bottomBorder;
+    //public static int scanStartHoriz = horizontalBorderSize+40;
+    //public static int topBorder = 420;
+    //public static int bottomBorder = 105;
+    //public static int scanWidth = (1280- horizontalBorderSize *2);
+    //public static int scanHeight = 720- topBorder - bottomBorder;
 
-    private static final SplittableRandom rng=new SplittableRandom();
+    private static final SplittableRandom rng = new SplittableRandom();
     public static int scanStartVert = 0;
     public static int scanStartHoriz = 0;
     public static int scanWidth = 1280;
@@ -97,15 +99,17 @@ public class ParkingTest extends LinearOpMode {
 
 
     public int exposure = 40000;
-    public int gain     = 120;
+    public int gain = 120;
 
     private static boolean exposureAlreadyChanged = false;
-    private static boolean prevGain     = false;
+    private static boolean prevGain = false;
     private String lastbarcode = "";
 
-    private int readno=0;
+    private int readno = 0;
 
     int result;
+
+    int scanlineY;
 
 
     @Override
@@ -118,7 +122,7 @@ public class ParkingTest extends LinearOpMode {
         // Put initialization blocks here.
         SampleMecanumDrive drive = new SampleMecanumDrive(hardwareMap);
 
-        Hashtable<DecodeHintType, Object> hints=new Hashtable<DecodeHintType, Object>();
+        Hashtable<DecodeHintType, Object> hints = new Hashtable<DecodeHintType, Object>();
         hints.put(DecodeHintType.TRY_HARDER, true);
 
         Reader reader = new DataMatrixReader();
@@ -134,26 +138,26 @@ public class ParkingTest extends LinearOpMode {
             Config colorConfig = new Config();
             colorConfig.enableStream(StreamType.INFRARED, 1, 1280, 720, StreamFormat.Y8, 5);
             colorConfig.enableStream(StreamType.DEPTH, 0, 1280, 720, StreamFormat.Z16, 5);
-            colorConfig.enableStream(StreamType.COLOR, 1, 1280, 720, StreamFormat.YUYV, 5);
+            colorConfig.enableStream(StreamType.COLOR, 0, 1280, 720, StreamFormat.YUYV, 5);
 
             Config fastConfig = new Config();
             fastConfig.enableStream(StreamType.INFRARED, 1, 424, 240, StreamFormat.Y8, 60);
 
-            try {
-                camera.switchConfig(colorConfig);
-            } catch (CameraStartException e) {
-                throwFatalError("Camera failed to start", e);
-            } catch (CameraStopException e) {
-                throwFatalError("Camera failed to stop.", e);
-            }
+            //DISABLED: try {
+            // -            camera.switchConfig(colorConfig);
+            // -        catch (CameraStartException e) {
+            // -            throwFatalError("Camera failed to start", e);
+            // -        } catch (CameraStopException e) {
+            // -            throwFatalError("Camera failed to stop.", e);
+            // -        }
 
-            try {
-                camera.switchConfig(fastConfig);
-            } catch (CameraStartException e) {
-                throwFatalError("Camera failed to start", e);
-            } catch (CameraStopException e) {
-                throwFatalError("Camera failed to stop.", e);
-            }
+            //DISABLED: try {
+            // -            camera.switchConfig(fastConfig);
+            // -        } catch (CameraStartException e) {
+            // -            throwFatalError("Camera failed to start", e);
+            // -        } catch (CameraStopException e) {
+            // -            throwFatalError("Camera failed to stop.", e);
+            // -        }
 
             try {
                 camera.switchConfig(colorConfig);
@@ -177,13 +181,13 @@ public class ParkingTest extends LinearOpMode {
 
             int attempt = 0;
 
-            TrajectoryBuilder fwd = new TrajectoryBuilder(new Pose2d(), SampleMecanumDrive.getVelocityConstraint(MAX_VEL, MAX_ANG_VEL, TRACK_WIDTH), SampleMecanumDrive.getAccelerationConstraint(MAX_ACCEL));
-            Trajectory fwdtraj = fwd.forward(13.75).build();
-            // TODO
-            drive.followTrajectory(fwdtraj);
+            //DISABLED: TrajectoryBuilder fwd = new TrajectoryBuilder(new Pose2d(), SampleMecanumDrive.getVelocityConstraint(MAX_VEL, MAX_ANG_VEL, TRACK_WIDTH), SampleMecanumDrive.getAccelerationConstraint(MAX_ACCEL));
+            // -        Trajectory fwdtraj = fwd.forward(12).build();
+            // -
+            // -        drive.followTrajectory(fwdtraj);
             Runtime runtime = Runtime.getRuntime();
             while (opModeIsActive()) {
-                System.out.println("Free memory: "+ (runtime.maxMemory() + runtime.freeMemory() - runtime.totalMemory() ) );
+                //System.out.println("Free memory: "+ (runtime.maxMemory() + runtime.freeMemory() - runtime.totalMemory() ) );
 
                 {
                     telemetry.addData("Gain", gain);
@@ -225,26 +229,16 @@ public class ParkingTest extends LinearOpMode {
                         exposureAlreadyChanged = true;
                     }
                 } else exposureAlreadyChanged = false;
+
+
+                if (!camera.updateFrameSet()) continue;
+                FrameData data = camera.getImageFrame(StreamType.INFRARED);
+
+
                 try {
-                    FrameData data;
-                    if(!camera.updateFrameSet()) continue;
-                    data = camera.getImageFrame(StreamType.INFRARED);
-                    BinaryBitmap bitmap = new BinaryBitmap(
-                            new HybridBinarizer(
-                                    new PlanarYUVLuminanceSource(
-                                            data.getFrameBuffer(),
-                                            data.getWidth(),
-                                            data.getHeight(),
-                                            scanStartHoriz,
-                                            scanStartVert,
-                                            scanWidth,
-                                            scanHeight,
-                                            false
-                                    )
-                            )
-                    );
+
                     //if (gamepad1.left_bumper)
-                    {
+                    /*DISABLED: {
                         //System.out.println("Image requested");
                         BitMatrix blackMatrix = null;
                         try {
@@ -254,30 +248,30 @@ public class ParkingTest extends LinearOpMode {
                         }
                         int mWidth = blackMatrix.getWidth();
                         int mHeight = blackMatrix.getHeight();//
-//
-                        int bytesPerRow = ((mWidth + 7) / 8);
-                        byte[] frameBufferMonochrome = new byte[bytesPerRow * mHeight];//
-//
-//                        for (int y = 0; y < mHeight; y++) {
-//                            for (int x = 0; x < bytesPerRow; x++) {
-//                                frameBufferMonochrome[bytesPerRow * y + x] = (byte) (
-//                                        ((x * 8 + 0 < mWidth) ? (blackMatrix.get(x * 8 + 0, y) ? 1 << 7 : 0) : 0) +
-//                                                ((x * 8 + 1 < mWidth) ? (blackMatrix.get(x * 8 + 1, y) ? 1 << 6 : 0) : 0) +
-//                                                ((x * 8 + 2 < mWidth) ? (blackMatrix.get(x * 8 + 2, y) ? 1 << 5 : 0) : 0) +
-//                                                ((x * 8 + 3 < mWidth) ? (blackMatrix.get(x * 8 + 3, y) ? 1 << 4 : 0) : 0) +
-//                                                ((x * 8 + 4 < mWidth) ? (blackMatrix.get(x * 8 + 4, y) ? 1 << 3 : 0) : 0) +
-//                                                ((x * 8 + 5 < mWidth) ? (blackMatrix.get(x * 8 + 5, y) ? 1 << 2 : 0) : 0) +
-//                                                ((x * 8 + 6 < mWidth) ? (blackMatrix.get(x * 8 + 6, y) ? 1 << 1 : 0) : 0) +
-//                                                ((x * 8 + 7 < mWidth) ? (blackMatrix.get(x * 8 + 7, y) ? 1 << 0 : 0) : 0)
-//                                );
-//                                if (y == mHeight/2) frameBufferMonochrome[bytesPerRow * y + x] = (byte)0xff;
-//                            }
-//                        }//
-//
-                        byte[] buffer = data.getFrameBuffer();
+
+                      DISABlED:  int bytesPerRow = ((mWidth + 7) / 8);
+                       - byte[] frameBufferMonochrome = new byte[bytesPerRow * mHeight];//
+                     -
+                     DISABLED:    for (int y = 0; y < mHeight; y++) {
+                            for (int x = 0; x < bytesPerRow; x++) {
+                                frameBufferMonochrome[bytesPerRow * y + x] = (byte) (
+                                        ((x * 8 + 0 < mWidth) ? (blackMatrix.get(x * 8 + 0, y) ? 1 << 7 : 0) : 0) +
+                                                ((x * 8 + 1 < mWidth) ? (blackMatrix.get(x * 8 + 1, y) ? 1 << 6 : 0) : 0) +
+                                                ((x * 8 + 2 < mWidth) ? (blackMatrix.get(x * 8 + 2, y) ? 1 << 5 : 0) : 0) +
+                                                ((x * 8 + 3 < mWidth) ? (blackMatrix.get(x * 8 + 3, y) ? 1 << 4 : 0) : 0) +
+                                                ((x * 8 + 4 < mWidth) ? (blackMatrix.get(x * 8 + 4, y) ? 1 << 3 : 0) : 0) +
+                                                ((x * 8 + 5 < mWidth) ? (blackMatrix.get(x * 8 + 5, y) ? 1 << 2 : 0) : 0) +
+                                                ((x * 8 + 6 < mWidth) ? (blackMatrix.get(x * 8 + 6, y) ? 1 << 1 : 0) : 0) +
+                                                ((x * 8 + 7 < mWidth) ? (blackMatrix.get(x * 8 + 7, y) ? 1 << 0 : 0) : 0)
+                                );
+                                if (y == mHeight/2) frameBufferMonochrome[bytesPerRow * y + x] = (byte)0xff;
+                            }
+                        }
+
+                      DISABLED:  byte[] buffer = data.getFrameBuffer();
                         int stride = data.getStride();
 
-                        for (int y = 0; y < mHeight; y++) {
+                      DISABLED:  for (int y = 0; y < mHeight; y++) {
                             for (int x = 0; x < bytesPerRow; x++) {
                                 frameBufferMonochrome[bytesPerRow * y + x] = (byte) (
                                         ((x * 8 + 0 < mWidth) ? ((byteToInt(buffer[stride*y+x*8+0])>rng.nextInt(255)) ? 1 << 7 : 0) : 0) +
@@ -293,39 +287,49 @@ public class ParkingTest extends LinearOpMode {
                             }
                         }
 
-                        ma.phoenix.ftc.cameradebugger.ImageTransmitter.transmitImage(ImageType.MONOCHROME_Y1, frameBufferMonochrome, mWidth, mHeight);
-                    }
-//                  attempt += 1;//
-//
-//                  result = reader.decode(bitmap, hints);
-//                  System.out.println("Barcode text: " + result.getText());
-//                  lastbarcode = result.getText() + " read no " + readno++;//
-//
-//                  if (!result.getText().isEmpty()) {
-//                      break;
-//                  }
+                      DISABLED: ma.phoenix.ftc.cameradebugger.ImageTransmitter.transmitImage(ImageType.MONOCHROME_Y1, frameBufferMonochrome, mWidth, mHeight);
+                    - }
+                  DISABLED: attempt += 1;//
+
+                  DISABLED: result = reader.decode(bitmap, hints);
+                  DISABLED: System.out.println("Barcode text: " + result.getText());
+                  DISABLED: lastbarcode = result.getText() + " read no " + readno++;//
+
+                  DISABLED: if (!result.getText().isEmpty()) {
+                      break;
+                  DISABLED: }
+                   */
 
                     float depth = 100000000;
                     int x = -1;
-                    for(int i = 0; i < data.getWidth(); i++){
-                        if(camera.getDistance(i, scanHeight/2) != 0 && camera.getDistance(i, scanHeight/2) < depth){
+                    scanlineY = (int) (data.getHeight() * 0.54);
+                    for (int i = (int)(data.getWidth() * 0.2); i < data.getWidth() * 0.8; i++) {
+                        if (camera.getDistance(i, scanlineY) != 0 && camera.getDistance(i, scanlineY) < depth) {
                             x = i;
-                            depth = camera.getDistance(i, scanHeight/2);
+                            depth = camera.getDistance(i, scanlineY);
                         }
                     }
-
-                    int red = Color.red(camera.getARGB(x, scanHeight/2));
-                    int green = Color.green(camera.getARGB(x, scanHeight/2));
-                    int blue = Color.blue(camera.getARGB(x, scanHeight/2));
-                    if(red > green && red > blue){
+                    if(x == -1) continue;
+                    camera.transmitMonochromeImage(x, scanlineY);
+                    //System.out.println(x);
+                    int red = Color.red(camera.getARGB(x, scanlineY));
+                    //System.out.println("RED: " + red);
+                    int green = Color.green(camera.getARGB(x, scanlineY));
+                    //System.out.println("GREEN: " + green);
+                    int blue = Color.blue(camera.getARGB(x, scanlineY));
+                    //System.out.println("BLUE: " + blue);
+                    if (red > green && red > blue) {
                         System.out.println("RED!");
                         result = 1;
-                    } else if(green > red && green > blue){
+                        break;
+                    } else if (green > red && green > blue) {
                         System.out.println("GREEN!");
                         result = 2;
+                        break;
                     } else {
                         System.out.println("BLUE!");
                         result = 3;
+                        break;
                     }
                 } catch (NoFrameSetYetAcquiredException e) {
                     e.printStackTrace();
@@ -339,68 +343,77 @@ public class ParkingTest extends LinearOpMode {
                 }
             }
 
-                    TrajectoryBuilder trajectoryBuilder =  new TrajectoryBuilder(drive.getPoseEstimate(), SampleMecanumDrive.getVelocityConstraint(MAX_VEL, MAX_ANG_VEL, TRACK_WIDTH), SampleMecanumDrive.getAccelerationConstraint(MAX_ACCEL));
+            TrajectoryBuilder trajectoryBuilder = new TrajectoryBuilder(drive.getPoseEstimate(), SampleMecanumDrive.getVelocityConstraint(MAX_VEL, MAX_ANG_VEL, TRACK_WIDTH), SampleMecanumDrive.getAccelerationConstraint(MAX_ACCEL));
 
-                    Trajectory fwd2 = trajectoryBuilder.forward(11).build();
-                    drive.followTrajectory(fwd2);
+            Trajectory fwd2 = trajectoryBuilder.forward(24).build();
+            drive.followTrajectory(fwd2);
 
-                    TrajectoryBuilder builder = new TrajectoryBuilder(
-                            fwd2.end(),
-                            false,
-                            SampleMecanumDrive.getVelocityConstraint(MAX_VEL, MAX_ANG_VEL, TRACK_WIDTH),
-                            SampleMecanumDrive.getAccelerationConstraint(MAX_ACCEL)
-                    );
+            TrajectoryBuilder builder = new TrajectoryBuilder(
+                    fwd2.end(),
+                    false,
+                    SampleMecanumDrive.getVelocityConstraint(MAX_VEL, MAX_ANG_VEL, TRACK_WIDTH),
+                    SampleMecanumDrive.getAccelerationConstraint(MAX_ACCEL)
+            );
 
-                    Trajectory trajectory = null;
-                    while(opModeIsActive()){
-                        if(result == 3){
-                            trajectory = builder.strafeRight(15).build();
-                            break;
-                        }
-                        if(result == 2){
-                            trajectory = builder.forward(0).build();
-                            break;
-                        }
-                        if(result == 1){
-                            trajectory = builder.strafeLeft(15).build();
-                            break;
-                        }
-                    }
+            Trajectory trajectory = null;
+            while (opModeIsActive()) {
+                if (result == 1) {
+                    trajectory = builder.strafeRight(24).build();
+                    break;
+                } else if (result == 2) {
+                    break;
+                } else if (result == 3) {
+                    trajectory = builder.strafeLeft(24).build();
+                    break;
+                }
+            }
 
 
-                    if(trajectory != null) {
-                        drive.followTrajectory(trajectory);
-                    }
-                    try {
-                        camera.close();
-                    } catch (FrameQueueCloseException e) {
-                        throwFatalError("Queue failed to close", e);
-                    } catch (CameraStopException e){
-                        throwFatalError("Camera failed to stop", e);
-                    }
+            if (trajectory != null) {
+                drive.followTrajectory(trajectory);
+            }
+            try {
+                camera.close();
+            } catch (FrameQueueCloseException e) {
+                throwFatalError("Queue failed to close", e);
+            } catch (CameraStopException e) {
+                throwFatalError("Camera failed to stop", e);
+            }
+            camera.close();
         } catch (FrameQueueCloseException e) {
+            throwFatalError("Cannot close queue", e);
             e.printStackTrace();
         } catch (DisconnectedCameraException e) {
             e.printStackTrace();
         } catch (CameraStopException e) {
             e.printStackTrace();
+        } catch (NoFrameSetYetAcquiredException e) {
+            e.printStackTrace();
+        } catch (UnsupportedStreamTypeException e) {
+            e.printStackTrace();
+        } catch (StreamTypeNotEnabledException e) {
+            e.printStackTrace();
         }
+
     }
 
     void isOpModeActive() throws InterruptedException {
-        if(isStopRequested()){
+        if (isStopRequested()) {
             throw new InterruptedException();
         }
     }
-    
+
     private void throwFatalError(String fatalErrorText, Throwable e) throws InterruptedException {
         e.printStackTrace();
         System.out.println("FATAL ERROR: " + fatalErrorText);
         System.err.println("FATAL ERROR: " + fatalErrorText);
         telemetry.addData("FATAL ERROR", fatalErrorText);
         telemetry.update();
-        while(!isStopRequested());
+        while (!isStopRequested()) ;
         throw new InterruptedException("FATAL ERROR: " + fatalErrorText);
     }
-    private int byteToInt(byte x) {return x & 0xff;}
+
+    private int byteToInt(byte x) {
+        return x & 0xff;
+    }
 }

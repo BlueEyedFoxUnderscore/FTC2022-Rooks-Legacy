@@ -2,6 +2,8 @@ package ma.phoenix.ftc.realsensecamera;
 
 import android.graphics.Color;
 
+import com.google.zxing.NotFoundException;
+import com.google.zxing.common.BitMatrix;
 import com.intel.realsense.librealsense.Align;
 import com.intel.realsense.librealsense.Config;
 import com.intel.realsense.librealsense.DepthFrame;
@@ -20,8 +22,10 @@ import com.intel.realsense.librealsense.StreamType;
 import com.intel.realsense.librealsense.VideoFrame;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 
+import java.util.SplittableRandom;
 import java.util.function.BooleanSupplier;
 
+import ma.phoenix.ftc.cameradebugger.ImageType;
 import ma.phoenix.ftc.realsensecamera.exceptions.NoFrameSetYetAcquiredException;
 import ma.phoenix.ftc.realsensecamera.exceptions.CameraStartException;
 import ma.phoenix.ftc.realsensecamera.exceptions.CameraStopException;
@@ -31,7 +35,7 @@ import ma.phoenix.ftc.realsensecamera.exceptions.StreamTypeNotEnabledException;
 import ma.phoenix.ftc.realsensecamera.exceptions.UnsupportedStreamTypeException;
 
 public class ConfigurableRealSenseCamera implements AutoCloseable{
-    private Pipeline mPipeline = new Pipeline();
+    private Pipeline mPipeline;
     private boolean mPipelineStopped = true;
 
     private Device mDevice;
@@ -75,7 +79,7 @@ public class ConfigurableRealSenseCamera implements AutoCloseable{
     private void profile(String string)
     {
         long endTime = System.currentTimeMillis();
-        System.out.println(string + " took " + (startTime-endTime)+"ms");
+        System.out.println(string + " took " + (endTime-startTime)+"ms");
         startTime = System.currentTimeMillis();
     }
     public ConfigurableRealSenseCamera(HardwareMap hardwareMap, BooleanSupplier isStopRequested) throws DisconnectedCameraException, InterruptedException {
@@ -91,11 +95,12 @@ public class ConfigurableRealSenseCamera implements AutoCloseable{
         for(int i = 0; i < 200; i++) {
             Thread.sleep(10);
             //DEBUG: System.out.println("testing if stop is requested");
-            if(!isStopRequested.getAsBoolean()){
+            if(isStopRequested.getAsBoolean()){
                 //DEBUG: System.out.println("breaking, stop was requested");
-                break;
+                return;
             }
             //DEBUG: System.out.println("checking that we don't have zero devices");
+            context = new RsContext();
             if(context.queryDevices().getDeviceCount() != 0)
             {
                 profile("getDeviceCount != 0");
@@ -121,11 +126,11 @@ public class ConfigurableRealSenseCamera implements AutoCloseable{
         // -     System.out.println("checking if pipeline running");
         if(!mPipelineStopped) stop();
         PipelineProfile pipelineProfile;
+        mPipeline = new Pipeline();
         assert mHaveConfig: "A config must be set before calling start";
         try{
             //DEBUG: System.out.println("starting pipeline");
             resetProfiler();
-            //mPipeline = new Pipeline();  // TODO: according to online sources, pipeline objects cannot be reused.  (In theory, this is officially a bug.)  Benchmark pipeline creation and test resuing the old one.
             profile("new mPipeline()");
             profile("mPipeline.start()");
             pipelineProfile = mPipeline.start(mConfig, mFrameQueue::Enqueue);
@@ -394,20 +399,47 @@ public class ConfigurableRealSenseCamera implements AutoCloseable{
 
     public void close() throws FrameQueueCloseException, CameraStopException {
         //DEBUG: System.out.println("close() called");
-        //DEBUG: System.out.println("calling stop()");
-        stop();
         //DEBUG: System.out.println("closing pipeline");
         if(mHaveCachedFrameSet) mCachedFrameSet.close();
         //DEBUG: System.out.println("closing depthFrame");
         if(mHaveCachedDepthFrame) mUnCastedDepthFrame.close();
+        //DEBUG: System.out.println("calling stop()");
+        stop();
         //DEBUG: System.out.println("closing queue");
         if(!mPipelineStopped) mPipeline.close();
-        //DEBUG: System.out.println("closing frameSet");
-        try {
-            mFrameQueue.close();
-        } catch (Exception e){
-            throw new FrameQueueCloseException();
+    }
+
+    public void transmitMonochromeImage(int scanlineX, int scanlineY) throws NoFrameSetYetAcquiredException, UnsupportedStreamTypeException, StreamTypeNotEnabledException {
+
+        FrameData data = this.getImageFrame(StreamType.INFRARED);
+
+        int width = data.getWidth();
+        int height = data.getHeight();
+        int stride = data.getStride();
+        int monochromeBytesPerRow = ((width + 7) / 8);
+
+        byte[] frameBufferMonochrome = new byte[monochromeBytesPerRow * height];
+        byte[] buffer = data.getFrameBuffer();
+        SplittableRandom rng = new SplittableRandom();
+        for (int y = 0; y < height; y++) {
+            for (int x = 0; x < monochromeBytesPerRow; x++) {
+                frameBufferMonochrome[monochromeBytesPerRow * y + x] = (byte) (
+                        ((x * 8 + 0 < width) ? ((byteToInt(buffer[stride*y+x*8+0])>rng.nextInt(255)) ? 1 << 7 : 0) : 0) +
+                        ((x * 8 + 1 < width) ? ((byteToInt(buffer[stride*y+x*8+1])>rng.nextInt(255)) ? 1 << 6 : 0) : 0) +
+                        ((x * 8 + 2 < width) ? ((byteToInt(buffer[stride*y+x*8+2])>rng.nextInt(255)) ? 1 << 5 : 0) : 0) +
+                        ((x * 8 + 3 < width) ? ((byteToInt(buffer[stride*y+x*8+3])>rng.nextInt(255)) ? 1 << 4 : 0) : 0) +
+                        ((x * 8 + 4 < width) ? ((byteToInt(buffer[stride*y+x*8+4])>rng.nextInt(255)) ? 1 << 3 : 0) : 0) +
+                        ((x * 8 + 5 < width) ? ((byteToInt(buffer[stride*y+x*8+5])>rng.nextInt(255)) ? 1 << 2 : 0) : 0) +
+                        ((x * 8 + 6 < width) ? ((byteToInt(buffer[stride*y+x*8+6])>rng.nextInt(255)) ? 1 << 1 : 0) : 0) +
+                        ((x * 8 + 7 < width) ? ((byteToInt(buffer[stride*y+x*8+7])>rng.nextInt(255)) ? 1 << 0 : 0) : 0)
+                );
+                if (y == scanlineY) frameBufferMonochrome[monochromeBytesPerRow * y + x] = (byte)0xff;
+            }
+            frameBufferMonochrome[monochromeBytesPerRow * y + scanlineX/8] |= (byte) 1 << (7 - scanlineX % 8);
         }
+
+
+        ma.phoenix.ftc.cameradebugger.ImageTransmitter.transmitImage(ImageType.MONOCHROME_Y1, frameBufferMonochrome, width, height);
     }
 
     private int byteToInt(byte x) {return x & 0xff;}

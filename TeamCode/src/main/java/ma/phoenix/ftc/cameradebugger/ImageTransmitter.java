@@ -27,10 +27,11 @@ public class ImageTransmitter {
 
         //bite a chunk of bytes off an array of bytes
 
-        System.out.println("ImageTransmitter ImageType: " + type.name());
+        Log.d("x","ImageTransmitter ImageType: " + type.name());
         {
-            System.out.println("width: "+width);
-            System.out.println("width: "+height);
+            Log.d("x","width: "+width);
+            Log.d("x","width: "+height);
+
             int i;
             int j=0;
             for (i = 0; i + CHUNK_SIZE <= frameBuffer.length; i += CHUNK_SIZE) {
@@ -45,10 +46,10 @@ public class ImageTransmitter {
                    }
                }
             }
-            if(frameBuffer.length != i) System.out.println("ImageTransmitter ImageChunk: " + bytesToHex(frameBuffer, i, frameBuffer.length - i));
+            if(frameBuffer.length != i) Log.d("x","ImageTransmitter ImageChunk: " + bytesToHex(frameBuffer, i, frameBuffer.length - i));
         }
 
-        System.out.println("ImageTransmitter ImageWidth: " + width);
-        System.out.println("ImageTransmitter ImageHeight: "+ height);
+        Log.d("x","ImageTransmitter ImageWidth: " + width);
+        Log.d("x","ImageTransmitter ImageHeight: "+ height);
     }
 }
