@@ -91,3 +91,4 @@ lint/tmp/
 
 #android studio profiling files
 *.hprof
+/.gitignore.orig
