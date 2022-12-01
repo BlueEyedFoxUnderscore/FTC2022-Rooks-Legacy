@@ -1,10 +1,15 @@
 package org.firstinspires.ftc.teamcode.drive.opmode;
 
+import static org.firstinspires.ftc.teamcode.drive.DriveConstants.MAX_ACCEL;
+import static org.firstinspires.ftc.teamcode.drive.DriveConstants.MAX_VEL;
+import static org.firstinspires.ftc.teamcode.drive.DriveConstants.MOTOR_VELO_PID;
+import static org.firstinspires.ftc.teamcode.drive.DriveConstants.RUN_USING_ENCODER;
+import static org.firstinspires.ftc.teamcode.drive.DriveConstants.kV;
+
 import com.acmerobotics.dashboard.FtcDashboard;
 import com.acmerobotics.dashboard.config.Config;
 import com.acmerobotics.dashboard.telemetry.MultipleTelemetry;
 import com.acmerobotics.roadrunner.geometry.Pose2d;
-import com.acmerobotics.roadrunner.kinematics.MecanumKinematics;
 import com.acmerobotics.roadrunner.profile.MotionProfile;
 import com.acmerobotics.roadrunner.profile.MotionProfileGenerator;
 import com.acmerobotics.roadrunner.profile.MotionState;
@@ -15,16 +20,10 @@ import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.util.RobotLog;
 
-import org.firstinspires.ftc.teamcode.drive.DriveConstants;
+import org.firstinspires.ftc.robotcore.external.Telemetry;
 import org.firstinspires.ftc.teamcode.drive.SampleMecanumDrive;
 
 import java.util.List;
-
-import static org.firstinspires.ftc.teamcode.drive.DriveConstants.MAX_ACCEL;
-import static org.firstinspires.ftc.teamcode.drive.DriveConstants.MAX_VEL;
-import static org.firstinspires.ftc.teamcode.drive.DriveConstants.MOTOR_VELO_PID;
-import static org.firstinspires.ftc.teamcode.drive.DriveConstants.RUN_USING_ENCODER;
-import static org.firstinspires.ftc.teamcode.drive.DriveConstants.kV;
 
 /*
  * This routine is designed to tune the PID coefficients used by the REV Expansion Hubs for closed-
@@ -73,7 +72,7 @@ public class DriveVelocityPIDTuner extends LinearOpMode {
                     "PID is not in use", getClass().getSimpleName());
         }
 
-        telemetry = new MultipleTelemetry(telemetry, FtcDashboard.getInstance().getTelemetry());
+        Telemetry telemetry = new MultipleTelemetry(this.telemetry, FtcDashboard.getInstance().getTelemetry());
 
         SampleMecanumDrive drive = new SampleMecanumDrive(hardwareMap);
 
@@ -122,23 +121,10 @@ public class DriveVelocityPIDTuner extends LinearOpMode {
                     }
 
                     MotionState motionState = activeProfile.get(profileTime);
-                    //double targetPower = kV * motionState.getV();
-                    //drive.setDrivePower(new Pose2d(targetPower, 0, 0));
+                    double targetPower = kV * motionState.getV();
+                    drive.setDrivePower(new Pose2d(targetPower, 0, 0));
 
-                    List<Double> velocities = MecanumKinematics.robotToWheelVelocities(
-                            new Pose2d(motionState.getV(), 0, 0),
-                            1.0,
-                            1.0,
-                            1
-                    );
-
-                    drive.leftFront.setVelocity (DriveConstants.inchesToEncoderTicks(velocities.get(0)));
-                    drive.rightFront.setVelocity(DriveConstants.inchesToEncoderTicks(velocities.get(0)));
-                    drive.leftRear.setVelocity  (DriveConstants.inchesToEncoderTicks(velocities.get(0)));
-                    drive.rightRear.setVelocity (DriveConstants.inchesToEncoderTicks(velocities.get(0)));
-
-
-                    velocities = drive.getWheelVelocities();
+                    List<Double> velocities = drive.getWheelVelocities();
 
                     // update telemetry
                     telemetry.addData("targetVelocity", motionState.getV());
