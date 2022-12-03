@@ -1,0 +1,20 @@
+@startuml
+'https://plantuml.com/class-diagram
+
+class ConfigurableCamera{
+    -Device configuredCamera
+    -Config config
+    -Pipeline pipeline
+    -PipelineProfile profile
+    +ConfigurableCamera(HardwareMap hardwareMap)
+    +configureBrightness(int gain, int exposure)
+    +selectCameraChannels(int[2] colour, int[2] infrared, int[2] depth)
+    +setAutoExposure(boolean enabled)
+    +Device getCamera()
+    +Frame getFrame()
+    -start()
+    -stop()
+}
+
+
+@enduml
