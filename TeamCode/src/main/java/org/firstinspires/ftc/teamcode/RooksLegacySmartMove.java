@@ -4,7 +4,6 @@ import android.graphics.Color;
 
 import com.acmerobotics.roadrunner.geometry.Pose2d;
 import com.acmerobotics.roadrunner.geometry.Vector2d;
-import com.acmerobotics.roadrunner.trajectory.Trajectory;
 import com.intel.realsense.librealsense.Config;
 import com.intel.realsense.librealsense.StreamType;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
@@ -31,145 +30,123 @@ import ma.phoenix.ftc.realsensecamera.exceptions.UnsupportedStreamTypeException;
 public class RooksLegacySmartMove extends LinearOpMode {
 
   private DcMotor lift;
-  private DcMotor leftRear;
-  private DcMotor rightRear;
-  private DcMotor leftFront;
-  private DcMotor rightFront;
   private Servo claw;
   private SampleMecanumDrive drive;
 
-  double Encoder_ticks_per_rotation;
-  double Circumference_in_Inches;
+  float requestedLinearXTranslation;
+  float requestedLinearYTranslation;
+  double requestedRadialTranslation;
 
+  double encoderTicksPerRotation;
+  double circumferenceInInches;
+
+  boolean rightTriggerAlreadyPressed = false;
+  boolean leftTriggerAlreadyPressed  = false;
   /**
    * This function is executed when this Op Mode is selected from the Driver Station.
    */
   @Override
   public void runOpMode() {
+
     try (ConfigurableRealSenseCamera camera = new ConfigurableRealSenseCamera(hardwareMap, () -> isStopRequested())) {
 
       ElapsedTime delay;
-      int max;
-      double linearTranslationCoeff;
-      double radialTranslationCoeff;
-      int liftTest;
-      float requestedLinearXTranslation;
-      float requestedLinearYTranslation;
-      double requestedRadialTranslation;
+      int liftPosition;
       drive = new SampleMecanumDrive(hardwareMap);
 
       lift = hardwareMap.get(DcMotor.class, "lift");
-      leftRear = hardwareMap.get(DcMotor.class, "leftRear");
-      rightRear = hardwareMap.get(DcMotor.class, "rightRear");
-      leftFront = hardwareMap.get(DcMotor.class, "leftFront");
-      rightFront = hardwareMap.get(DcMotor.class, "rightFront");
       claw = hardwareMap.get(Servo.class, "claw");
 
       ((DcMotorEx) lift).setVelocityPIDFCoefficients(0, 0, 0, 12.411);
       ((DcMotorEx) lift).setPositionPIDFCoefficients(15);
       // Put initialization blocks here.
-      Circumference_in_Inches = 4.409;
-      Encoder_ticks_per_rotation = 384.5;
+
+      circumferenceInInches = 4.409;
+      encoderTicksPerRotation = 384.5;
+
       lift.setDirection(DcMotorSimple.Direction.REVERSE);
       lift.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
       lift.setPower(-0.3);
+
       delay = new ElapsedTime();
-      while (delay.seconds() < 2) {
+
+      while (delay.seconds() < 0.5) {
         telemetry.addData("key", delay);
         telemetry.update();
       }
+
       Config findCone = new Config();
+
       findCone.enableStream(StreamType.COLOR);
       findCone.enableStream(StreamType.DEPTH);
       findCone.enableStream(StreamType.INFRARED);
 
       camera.switchConfig(findCone);
 
-      max = 0;
-      lift.setPower(1);
       lift.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
       lift.setMode(DcMotor.RunMode.RUN_TO_POSITION);
       lift.setPower(1);
-      linearTranslationCoeff = 0.210526;
-      radialTranslationCoeff = 7.91578;
-      liftTest = 0;
+
+      liftPosition = 0;
       waitForStart();
+
       if (opModeIsActive()) {
         while (opModeIsActive()) {
+          drive.updatePoseEstimate();
           // Put loop blocks here.
           if (gamepad1.right_bumper) {
-            liftTest += 1;
-          } else {
-            if (gamepad1.left_bumper) {
-              liftTest += -1;
+            if (!rightTriggerAlreadyPressed) {
+              liftPosition += 1;
+              rightTriggerAlreadyPressed = true;
             }
           }
-          if (gamepad1.dpad_up) {
-            liftTest = 4;
-          }
-          if (gamepad1.dpad_right) {
-            liftTest = 3;
-          }
-          if (gamepad1.dpad_down) {
-            liftTest = 2;
-          }
-          if (gamepad1.dpad_left) {
-            liftTest = 1;
-          }
-          if (gamepad1.y) {
-            liftTest = 0;
-          }
-          if (liftTest < 0) {
-            liftTest = 0;
-          }
-          if (liftTest > 4) {
-            liftTest = 4;
-          }
-          if (liftTest == 0) {
-            moveLift(0);
-          } else if (liftTest == 1) {
-            moveLift(2.75);
-          } else {
-            if (liftTest == 2) {
-              moveLift(14.5);
-            } else if (liftTest == 3) {
-              moveLift(24.5);
-            } else {
-              moveLift(34.5);
+          else rightTriggerAlreadyPressed = false;
+
+          if (gamepad1.left_bumper)  {
+            if(!leftTriggerAlreadyPressed){
+              liftPosition -= 1;
+              leftTriggerAlreadyPressed = true;
             }
           }
-          if ((gamepad1.right_trigger > 0.5) || gamepad1.a) {
-            claw.setPosition(20.0 / 190); // In pressed pos
-          } else {
-            claw.setPosition(12.0 / 190); // In release pos
-          }
+          else leftTriggerAlreadyPressed  = false;
+
+          if (gamepad1.dpad_up)    liftPosition = 4;
+          if (gamepad1.dpad_right) liftPosition = 3;
+          if (gamepad1.dpad_down)  liftPosition = 2;
+          if (gamepad1.dpad_left)  liftPosition = 1;
+          if (gamepad1.y)          liftPosition = 0;
+
+          if (liftPosition < 0) liftPosition = 0;
+          if (liftPosition > 4) liftPosition = 4;
+
+          if (liftPosition == 0) moveLift(0.00);
+          if (liftPosition == 1) moveLift(2.75);
+          if (liftPosition == 2) moveLift(14.5);
+          if (liftPosition == 3) moveLift(24.5);
+          if (liftPosition == 4) moveLift(34.5);
+
+          if ((gamepad1.right_trigger > 0.5) || gamepad1.a) claw.setPosition(20.0 / 190); // In pressed pos
+          else claw.setPosition(12.0 / 190); // In release pos
+
           if (gamepad1.left_trigger > 0.5 || gamepad1.b) {
-            requestedLinearXTranslation = gamepad1.left_stick_x * 1;
-            requestedLinearYTranslation = gamepad1.left_stick_y * 1;
-            requestedRadialTranslation = gamepad1.right_stick_x * 0.05;
+            requestedLinearXTranslation = gamepad1.left_stick_x  * 1;
+            requestedLinearYTranslation = gamepad1.left_stick_y  * 1;
+            requestedRadialTranslation  = gamepad1.right_stick_x * 0.05;
+          } else if (liftPosition == 3 || liftPosition == 4) {
+            requestedLinearXTranslation = gamepad1.left_stick_x  * 2;
+            requestedLinearYTranslation = gamepad1.left_stick_y  * 2;
+            requestedRadialTranslation  = gamepad1.right_stick_x * 0.08;
           } else {
-            if (liftTest == 3 || liftTest == 4) {
-              requestedLinearXTranslation = gamepad1.left_stick_x * 2;
-              requestedLinearYTranslation = gamepad1.left_stick_y * 2;
-              requestedRadialTranslation = gamepad1.right_stick_x * 0.08;
-            } else {
-              requestedLinearXTranslation = gamepad1.left_stick_x * 4;
-              requestedLinearYTranslation = gamepad1.left_stick_y * 4;
-              requestedRadialTranslation = gamepad1.right_stick_x * 0.1;
-            }
+            requestedLinearXTranslation = gamepad1.left_stick_x  * 4;
+            requestedLinearYTranslation = gamepad1.left_stick_y  * 4;
+            requestedRadialTranslation  = gamepad1.right_stick_x * 0.1;
           }
-          drive.updatePoseEstimate();
-          Pose2d poseEstimate = drive.getPoseEstimate();
-          Vector2d input = new Vector2d(
-                  -gamepad1.left_stick_y,
-                  -gamepad1.left_stick_x
-          ).rotated(-poseEstimate.getHeading());
+
 
           if (gamepad1.x) {
             int i;
             if(!camera.updateFrameSet()) continue;
             FrameData data = camera.getImageFrame(StreamType.DEPTH);
-            FrameData colourData = camera.getImageFrame(StreamType.COLOR);
             int middleCone = -1;
             float depth = 100000000;
             int x = -1;
@@ -233,6 +210,12 @@ public class RooksLegacySmartMove extends LinearOpMode {
             int distanceFromMiddle = data.getWidth() / 2 - middleCone;
             double degreesPerPixel = 90.0 / data.getWidth();
 
+            if(middleCone < 241){
+              System.out.println("Closer than should be");
+            }else{
+              System.out.println("Farther than should be");
+            }
+
             camera.drawHorizontalLine(scanlineY);
             camera.drawVerticalLine(middleCone);
             camera.drawVerticalLine(leftSideCone);
@@ -242,45 +225,23 @@ public class RooksLegacySmartMove extends LinearOpMode {
             drive.turn(Math.toRadians(degreesPerPixel * distanceFromMiddle));
             System.out.println(-Math.toRadians(degreesPerPixel * distanceFromMiddle));
           } else {
-            drive.setWeightedDrivePower(new Pose2d(input.getX(), input.getY(), -gamepad1.right_stick_x));
+            Vector2d requestedLinearInput = requestedLinearDriveInput();
+            drive.setWeightedDrivePower(new Pose2d(requestedLinearInput.getX(), requestedLinearInput.getY(), -requestedRadialTranslation));
           }
-          //DISABLED: rightFront.setPower(requestedLinearXTranslation * +1 * linearTranslationCoeff + requestedLinearYTranslation * linearTranslationCoeff + requestedRadialTranslation * radialTranslationCoeff);
-          // -        leftFront. setPower(requestedLinearXTranslation * -1 * linearTranslationCoeff + requestedLinearYTranslation * linearTranslationCoeff + requestedRadialTranslation * -1 * radialTranslationCoeff);
-          // -        rightRear. setPower(requestedLinearXTranslation * -1 * linearTranslationCoeff + requestedLinearYTranslation * linearTranslationCoeff + requestedRadialTranslation * radialTranslationCoeff);
-          // -        leftRear.  setPower(requestedLinearXTranslation * +1 * linearTranslationCoeff + requestedLinearYTranslation * linearTranslationCoeff + requestedRadialTranslation * -1 * radialTranslationCoeff);
           telemetry.addData("position of claw", Double.parseDouble(JavaUtil.formatNumber(claw.getPosition(), 2)));
-          telemetry.addData("0 ω", Double.parseDouble(JavaUtil.formatNumber(requestedLinearXTranslation * linearTranslationCoeff + requestedLinearYTranslation * linearTranslationCoeff + requestedRadialTranslation * radialTranslationCoeff, 2)));
-          telemetry.addData("0 ω - true (Shrek)", Double.parseDouble(JavaUtil.formatNumber(rightFront.getPower(), 2)));
-          telemetry.addData("0 position", Double.parseDouble(JavaUtil.formatNumber(rightFront.getCurrentPosition(), 2)));
-          telemetry.addData("1 ω", Double.parseDouble(JavaUtil.formatNumber(requestedLinearXTranslation * linearTranslationCoeff + requestedLinearYTranslation * linearTranslationCoeff + requestedRadialTranslation * radialTranslationCoeff, 2)));
-          telemetry.addData("1 ω - true", Double.parseDouble(JavaUtil.formatNumber(leftFront.getPower(), 2)));
-          telemetry.addData("1 position", Double.parseDouble(JavaUtil.formatNumber(leftFront.getCurrentPosition(), 2)));
-          telemetry.addData("2 ω", Double.parseDouble(JavaUtil.formatNumber(requestedLinearXTranslation * linearTranslationCoeff + requestedLinearYTranslation * linearTranslationCoeff + requestedRadialTranslation * radialTranslationCoeff, 2)));
-          telemetry.addData("2 ω - true", Double.parseDouble(JavaUtil.formatNumber(rightRear.getPower(), 2)));
-          telemetry.addData("2 position", Double.parseDouble(JavaUtil.formatNumber(rightRear.getCurrentPosition(), 2)));
-          telemetry.addData("3 ω", Double.parseDouble(JavaUtil.formatNumber(requestedLinearXTranslation * linearTranslationCoeff + requestedLinearYTranslation * linearTranslationCoeff + requestedRadialTranslation * radialTranslationCoeff, 2)));
-          telemetry.addData("3 ω - true", Double.parseDouble(JavaUtil.formatNumber(leftRear.getPower(), 2)));
-          telemetry.addData("3 position", Double.parseDouble(JavaUtil.formatNumber(leftRear.getCurrentPosition(), 2)));
           telemetry.addData("Joystick Y", Double.parseDouble(JavaUtil.formatNumber(requestedLinearYTranslation, 2)));
           telemetry.addData("Joystick X", Double.parseDouble(JavaUtil.formatNumber(requestedLinearXTranslation, 2)));
           telemetry.update();
         }
       }
-    } catch (NoFrameSetYetAcquiredException e) {
-      e.printStackTrace();
-    } catch (UnsupportedStreamTypeException e) {
-      e.printStackTrace();
-    } catch (StreamTypeNotEnabledException e) {
-      e.printStackTrace();
-    } catch (FrameQueueCloseException e) {
-      e.printStackTrace();
-    } catch (DisconnectedCameraException e) {
-      e.printStackTrace();
-    } catch (CameraStopException e) {
-      e.printStackTrace();
-    } catch (InterruptedException e) {
-      e.printStackTrace();
-    } catch (CameraStartException e) {
+    } catch (NoFrameSetYetAcquiredException |
+            UnsupportedStreamTypeException  |
+            StreamTypeNotEnabledException   |
+            FrameQueueCloseException        |
+            DisconnectedCameraException     |
+            CameraStopException             |
+            InterruptedException            |
+            CameraStartException e) {
       e.printStackTrace();
     }
   }
@@ -289,6 +250,13 @@ public class RooksLegacySmartMove extends LinearOpMode {
    * Describe this function...
    */
   private void moveLift(double lift_distance) {
-    lift.setTargetPosition((int) ((lift_distance / Circumference_in_Inches) * Encoder_ticks_per_rotation));
+    lift.setTargetPosition((int) ((lift_distance / circumferenceInInches) * encoderTicksPerRotation));
+  }
+
+  private Vector2d requestedLinearDriveInput(){
+    return new Vector2d(
+            -requestedLinearYTranslation,
+            -requestedLinearXTranslation
+    ).rotated(-drive.getPoseEstimate().getHeading());
   }
 }
