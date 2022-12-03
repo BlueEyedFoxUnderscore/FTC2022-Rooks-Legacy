@@ -35,16 +35,15 @@ public class ImageTransmitter {
             int i;
             int j=0;
             for (i = 0; i + CHUNK_SIZE <= frameBuffer.length; i += CHUNK_SIZE) {
-                Log.d("x", "ImageTransmitter ImageChunk: " + bytesToHex(frameBuffer, i, CHUNK_SIZE));
-
-               if(j++>10) {
+                if(j++>0) {
                    j=0;
                    try {
-                       Thread.sleep(10);
+                       Thread.sleep(100);
                    } catch (InterruptedException e) {
                        e.printStackTrace();
                    }
                }
+                Log.d("x", "ImageTransmitter ImageChunk: " + bytesToHex(frameBuffer, i, CHUNK_SIZE));
             }
             if(frameBuffer.length != i) Log.d("x","ImageTransmitter ImageChunk: " + bytesToHex(frameBuffer, i, frameBuffer.length - i));
         }

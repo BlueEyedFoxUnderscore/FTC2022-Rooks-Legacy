@@ -386,7 +386,7 @@ public class ConfigurableRealSenseCamera implements AutoCloseable{
                         Math.min(Math.max((298*c-100*d-208*e+128)>>8,0),255),
                         Math.min(Math.max((298*c+516*d+128)>>8,0),255));
             case RGB8:
-                System.out.println("Getting RGB");
+                //System.out.println("Getting RGB");
                 index = y*mColourStride + x*3; // Get pixel index
                 return Color.argb(0,
                         byteToInt(colourFrameBuffer[index]),
@@ -409,7 +409,7 @@ public class ConfigurableRealSenseCamera implements AutoCloseable{
         if(!mPipelineStopped) mPipeline.close();
     }
 
-    public void transmitMonochromeImage(int scanlineX, int scanlineY) throws NoFrameSetYetAcquiredException, UnsupportedStreamTypeException, StreamTypeNotEnabledException {
+    public void transmitMonochromeImage(/*int scanlineX, int scanlineY*/) throws NoFrameSetYetAcquiredException, UnsupportedStreamTypeException, StreamTypeNotEnabledException {
 
         FrameData data = this.getImageFrame(StreamType.INFRARED);
 
@@ -433,13 +433,44 @@ public class ConfigurableRealSenseCamera implements AutoCloseable{
                         ((x * 8 + 6 < width) ? ((byteToInt(buffer[stride*y+x*8+6])>rng.nextInt(255)) ? 1 << 1 : 0) : 0) +
                         ((x * 8 + 7 < width) ? ((byteToInt(buffer[stride*y+x*8+7])>rng.nextInt(255)) ? 1 << 0 : 0) : 0)
                 );
-                if (y == scanlineY) frameBufferMonochrome[monochromeBytesPerRow * y + x] = (byte)0xff;
+                //if (y == scanlineY) frameBufferMonochrome[monochromeBytesPerRow * y + x] = (byte)0xff;
             }
-            frameBufferMonochrome[monochromeBytesPerRow * y + scanlineX/8] |= (byte) 1 << (7 - scanlineX % 8);
+            //frameBufferMonochrome[monochromeBytesPerRow * y + scanlineX/8] |= (byte) 1 << (7 - scanlineX % 8);
+
         }
 
 
         ma.phoenix.ftc.cameradebugger.ImageTransmitter.transmitImage(ImageType.MONOCHROME_Y1, frameBufferMonochrome, width, height);
+    }
+
+    public void drawHorizontalLine(int y) throws NoFrameSetYetAcquiredException, UnsupportedStreamTypeException, StreamTypeNotEnabledException {
+
+        FrameData data = this.getImageFrame(StreamType.INFRARED);
+        byte frameBuffer[] = data.getFrameBuffer();
+
+        int width = data.getWidth();
+        int height = data.getHeight();
+        int stride = data.getStride();
+
+        for (int x = 0; x < width; x++)
+        {
+            frameBuffer[y*stride+x]=(byte)255;
+        }
+    }
+
+    public void drawVerticalLine(int x) throws NoFrameSetYetAcquiredException, UnsupportedStreamTypeException, StreamTypeNotEnabledException {
+
+        FrameData data = this.getImageFrame(StreamType.INFRARED);
+        byte frameBuffer[] = data.getFrameBuffer();
+
+        int width = data.getWidth();
+        int height = data.getHeight();
+        int stride = data.getStride();
+
+        for (int y = 0; y < height; y++)
+        {
+            frameBuffer[y*stride+x]=(byte)255;
+        }
     }
 
     private int byteToInt(byte x) {return x & 0xff;}

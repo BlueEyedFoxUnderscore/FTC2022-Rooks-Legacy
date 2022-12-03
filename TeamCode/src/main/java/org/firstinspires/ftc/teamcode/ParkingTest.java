@@ -310,7 +310,9 @@ public class ParkingTest extends LinearOpMode {
                         }
                     }
                     if(x == -1) continue;
-                    camera.transmitMonochromeImage(x, scanlineY);
+                    camera.drawVerticalLine(x);
+                    camera.drawHorizontalLine(scanlineY);
+                    camera.transmitMonochromeImage();
                     //System.out.println(x);
                     int red = Color.red(camera.getARGB(x, scanlineY));
                     //System.out.println("RED: " + red);
