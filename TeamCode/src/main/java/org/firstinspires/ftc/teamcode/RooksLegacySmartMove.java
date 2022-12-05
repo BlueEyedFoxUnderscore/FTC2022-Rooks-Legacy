@@ -29,6 +29,7 @@ import ma.phoenix.ftc.realsensecamera.exceptions.NoFrameSetYetAcquiredException;
 import ma.phoenix.ftc.realsensecamera.exceptions.StreamTypeNotEnabledException;
 import ma.phoenix.ftc.realsensecamera.exceptions.UnsupportedStreamTypeException;
 
+
 @TeleOp(name = "Rooks Legacy Smart Move")
 public class RooksLegacySmartMove extends LinearOpMode {
 
@@ -196,65 +197,41 @@ public class RooksLegacySmartMove extends LinearOpMode {
             // -   }
             // - }
 
-            StringBuilder hueString = new StringBuilder();
-            StringBuilder satString = new StringBuilder();
-            StringBuilder valString = new StringBuilder();
+            int coneWidth;
 
 
-            for(i = nearestPointGuess; i >= 0; i-=2){
-              Color.colorToHSV(camera.getARGB(i, scanlineY), hsv);
-              double hue = hsv[0];
-              double sat = hsv[1];
-              double val = hsv[2];
-              if(((hueRange(hue, 220, 260) && !redCone) || (hueRange(hue, 330, 10) && redCone)) && sat > 0.3) {
-                if(notConeCountdown == notConeTolerance){
-                  hueString.insert (0, String.format("%03.0f ", hue));
-                  satString.insert (0, String.format("%.2f ", sat).substring(1));
-                  valString.insert (0, String.format("%.2f ", val).substring(1));
-                  leftSideCone = i;
-                } else notConeCountdown++;
-              }else{
-                if(notConeCountdown == 0){
-                  break;
-                }
-                assert(notConeCountdown > 0);
-                notConeCountdown--;
+
+            ObjectExtentParameters extentParameters = findObjectExtentUsingHueRange(nearestPointGuess, scanlineY, redCone? coneColourRanges[1] : coneColourRanges[0], false);
+            rightSideCone = extentParameters.getRightSide();
+            leftSideCone  = extentParameters.getLeftSide() ;
+            middleCone    = extentParameters.getMiddle()   ;
+            coneWidth     = extentParameters.getWidth()    ;
+
+            extentParameters = findObjectExtentUsingHueRange(middleCone, (int)(data.getHeight() * 0.05), redCone? coneColourRanges[1] : coneColourRanges[0], false);
+            camera.drawHorizontalLine((int)(data.getHeight()*.05));
+
+            int duoConeWidth = extentParameters.getWidth();
+
+            boolean onlyOneCone = duoConeWidth < 45;
+
+            if(!onlyOneCone){
+              int coneRimWidth = 0;
+
+              for(float f = 0.75f; f <= 1f; f += 0.02f){
+                extentParameters = findObjectExtentUsingHueRange(middleCone, ((int) (data.getHeight() * f)), redCone? coneColourRanges[1] : coneColourRanges[0], false);
+                camera.drawHorizontalLine((int)(data.getHeight() * f));
+                rightSideCone = extentParameters.getRightSide();
+                leftSideCone  = extentParameters.getLeftSide() ;
+                middleCone    = extentParameters.getMiddle()   ;
+                coneWidth     = extentParameters.getWidth()    ;
+                coneRimWidth  = coneRimWidth < coneWidth ? coneWidth : coneRimWidth;
               }
-            }
-            notConeCountdown = notConeTolerance;
-            if(leftSideCone == -1) continue;
-
-            for(i = nearestPointGuess; i <= data.getWidth(); i+=2){
-              Color.colorToHSV(camera.getARGB(i, scanlineY), hsv);
-              double hue = hsv[0];
-              double sat = hsv[1];
-              double val = hsv[2];
-              if(((hueRange(hue, 220, 260) && !redCone) || (hueRange(hue, 330, 10) && redCone)) && sat > 0.3) {
-                if(notConeCountdown == notConeTolerance){
-                  hueString.append(String.format("%03.0f ", hue));
-                  satString.append (String.format("%.2f ", sat).substring(1));
-                  valString.append (String.format("%.2f ", val).substring(1));
-                  rightSideCone = i;
-                } else notConeCountdown++;
-              }else{
-                if(notConeCountdown == 0){
-                  break;
-                }
-                assert(notConeCountdown > 0);
-                notConeCountdown--;
-              }
+              System.out.println("CONEWIDTH RIM: " + coneRimWidth);
             }
 
-            hueString.insert (0, "Hue: ");
-            satString.insert (0, "Sat: ");
-            valString.insert (0, "Val: ");
-            System.out.println(hueString);
-            System.out.println(satString);
-            System.out.println(valString);
-
+            System.out.println("doublecone width: "+ duoConeWidth);
             if(rightSideCone == -1) continue;
-            middleCone = (leftSideCone + rightSideCone) / 2;
-            int coneWidth = rightSideCone - leftSideCone;
+
             System.out.println("CONEWIDTH: " + coneWidth);
             int distanceFromMiddle = data.getWidth() / 2 - middleCone - 40;
             double degreesPerPixel = 90.0 / data.getWidth();
@@ -268,14 +245,10 @@ public class RooksLegacySmartMove extends LinearOpMode {
             drive.updatePoseEstimate();
             drive.followTrajectory(drive.trajectoryBuilder(drive.getPoseEstimate()).forward(pseudoDistance).build());
 
-            if(middleCone < 241){
-              System.out.println("Closer than should be");
-            }else{
-              System.out.println("Farther than should be");
-            }
-
             camera.drawHorizontalLine(scanlineY);
-            //camera.drawVerticalLine(middleCone);
+            camera.drawHorizontalLine((int)(data.getHeight()*.05));
+
+            camera.drawVerticalLine(middleCone);
             camera.drawVerticalLine(leftSideCone);
             camera.drawVerticalLine(rightSideCone);
             camera.drawVerticalLine(nearestPointGuess);
@@ -369,5 +342,128 @@ public class RooksLegacySmartMove extends LinearOpMode {
       }
     }
     return new Triple<>(x, associatedColourRange, depth);
+  }
+
+  private ObjectExtentParameters findObjectExtentUsingHueRange(int startX, int scanlineY, Pair<Float, Float> hueRange, boolean debug) throws NoFrameSetYetAcquiredException, UnsupportedStreamTypeException, StreamTypeNotEnabledException {
+    FrameData data = camera.getImageFrame(StreamType.COLOR);
+
+    int i;
+    float[] hsv = new float[3];
+
+    int notConeTolerance = 5;
+    int notConeCountdown = notConeTolerance;
+
+    StringBuilder hueString = null;
+    StringBuilder satString = null;
+    StringBuilder valString = null;
+
+    int leftSideCone  = -1;
+    int rightSideCone = -1;
+    int coneWidth     = -1;
+    int middleCone    = -1;
+
+    if(debug){
+      hueString = new StringBuilder("HUE: ");
+      satString = new StringBuilder("SAT: ");
+      valString = new StringBuilder("VAL: ");
+    }
+
+    for(i = startX; i >= 0; i-=2){
+      Color.colorToHSV(camera.getARGB(i, scanlineY), hsv);
+      double hue = hsv[0];
+      double sat = hsv[1];
+      double val = hsv[2];
+      if(hueRange(hue, hueRange.fst, hueRange.snd) && sat > 0.3) {
+        if(notConeCountdown == notConeTolerance){
+          if(debug) {
+            hueString.insert(0, String.format("%03.0f ", hue));
+            satString.insert(0, String.format("%.2f ", sat).substring(1));
+            valString.insert(0, String.format("%.2f ", val).substring(1));
+          }
+
+          leftSideCone = i;
+        } else notConeCountdown++;
+      }else{
+        if(notConeCountdown == 0){
+          break;
+        }
+        assert(notConeCountdown > 0);
+        notConeCountdown--;
+      }
+    }
+    if(debug){
+      System.out.println(hueString + "\n" + satString + "\n" + valString);
+    }
+
+    notConeCountdown = notConeTolerance;
+
+    if(debug){
+      hueString = new StringBuilder("HUE: ");
+      satString = new StringBuilder("SAT: ");
+      valString = new StringBuilder("VAL: ");
+    }
+
+    for(i = startX; i <= data.getWidth(); i+=2){
+      Color.colorToHSV(camera.getARGB(i, scanlineY), hsv);
+      double hue = hsv[0];
+      double sat = hsv[1];
+      double val = hsv[2];
+      if(hueRange(hue, hueRange.fst, hueRange.snd) && sat > 0.3) {
+        if(notConeCountdown == notConeTolerance){
+          if(debug) {
+            hueString.append(String.format("%03.0f ", hue));
+            satString.append(String.format("%.2f ", sat).substring(1));
+            valString.append(String.format("%.2f ", val).substring(1));
+          }
+          rightSideCone = i;
+        } else notConeCountdown++;
+      }else{
+        if(notConeCountdown == 0){
+          break;
+        }
+        assert(notConeCountdown > 0);
+        notConeCountdown--;
+      }
+    }
+
+    if(debug){
+      System.out.println(hueString + "\n" + satString + "\n" + valString);
+    }
+
+    middleCone = (leftSideCone + rightSideCone) / 2;
+    coneWidth  =  rightSideCone - leftSideCone;
+
+    return new ObjectExtentParameters(leftSideCone, rightSideCone, middleCone, coneWidth);
+  }
+
+  class ObjectExtentParameters{
+
+    private int leftSide;
+    private int rightSide;
+    private int middle;
+    private int width;
+
+    public ObjectExtentParameters(int leftSide, int rightSide, int middle, int width){
+      this.leftSide  =  leftSide;
+      this.rightSide = rightSide;
+      this.middle    =    middle;
+      this.width     =     width;
+    }
+
+    public  int getLeftSide(){
+      return leftSide;
+    }
+
+    public int getRightSide() {
+      return rightSide;
+    }
+
+    public int getMiddle() {
+      return middle;
+    }
+
+    public int getWidth() {
+      return width;
+    }
   }
 }
