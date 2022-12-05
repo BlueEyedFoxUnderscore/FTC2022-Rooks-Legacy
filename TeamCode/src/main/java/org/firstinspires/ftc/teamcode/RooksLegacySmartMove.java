@@ -1,6 +1,7 @@
 package org.firstinspires.ftc.teamcode;
 
 import android.graphics.Color;
+import android.graphics.ColorSpace;
 
 import com.acmerobotics.roadrunner.geometry.Pose2d;
 import com.acmerobotics.roadrunner.geometry.Vector2d;
@@ -13,6 +14,8 @@ import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.DcMotorSimple;
 import com.qualcomm.robotcore.hardware.Servo;
 import com.qualcomm.robotcore.util.ElapsedTime;
+import com.sun.tools.javac.util.Pair;
+
 import org.firstinspires.ftc.robotcore.external.JavaUtil;
 import org.firstinspires.ftc.teamcode.drive.SampleMecanumDrive;
 
@@ -66,7 +69,7 @@ public class RooksLegacySmartMove extends LinearOpMode {
 
       lift.setDirection(DcMotorSimple.Direction.REVERSE);
       lift.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
-      lift.setPower(-0.3);
+      lift.setPower(-0.5);
 
       delay = new ElapsedTime();
 
@@ -85,7 +88,7 @@ public class RooksLegacySmartMove extends LinearOpMode {
 
       lift.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
       lift.setMode(DcMotor.RunMode.RUN_TO_POSITION);
-      lift.setPower(1);
+      lift.setPower(0.3);
 
       liftPosition = 0;
       waitForStart();
@@ -119,63 +122,90 @@ public class RooksLegacySmartMove extends LinearOpMode {
           if (liftPosition < 0) liftPosition = 0;
           if (liftPosition > 4) liftPosition = 4;
 
+          if (liftPosition < 2){
+            lift.setPower(0.5);
+          } else {
+            lift.setPower(1);
+          }
+
           if (liftPosition == 0) moveLift(0.00);
           if (liftPosition == 1) moveLift(2.75);
           if (liftPosition == 2) moveLift(14.5);
           if (liftPosition == 3) moveLift(24.5);
           if (liftPosition == 4) moveLift(34.5);
 
-          if ((gamepad1.right_trigger > 0.5) || gamepad1.a) claw.setPosition(20.0 / 190); // In pressed pos
+          if ((gamepad1.right_trigger > 0.5) || gamepad1.a) claw.setPosition(25.0 / 190); // In pressed pos
           else claw.setPosition(12.0 / 190); // In release pos
 
           if (gamepad1.left_trigger > 0.5 || gamepad1.b) {
-            requestedLinearXTranslation = gamepad1.left_stick_x  * 1;
-            requestedLinearYTranslation = gamepad1.left_stick_y  * 1;
-            requestedRadialTranslation  = gamepad1.right_stick_x * 0.05;
+            requestedLinearXTranslation = gamepad1.left_stick_x  * 0.25f;
+            requestedLinearYTranslation = gamepad1.left_stick_y  * 0.25f;
+            requestedRadialTranslation  = gamepad1.right_stick_x * 0.25f;
           } else if (liftPosition == 3 || liftPosition == 4) {
-            requestedLinearXTranslation = gamepad1.left_stick_x  * 2;
-            requestedLinearYTranslation = gamepad1.left_stick_y  * 2;
-            requestedRadialTranslation  = gamepad1.right_stick_x * 0.08;
+            requestedLinearXTranslation = gamepad1.left_stick_x  * 0.5f;
+            requestedLinearYTranslation = gamepad1.left_stick_y  * 0.5f;
+            requestedRadialTranslation  = gamepad1.right_stick_x * 0.5f;
           } else {
-            requestedLinearXTranslation = gamepad1.left_stick_x  * 4;
-            requestedLinearYTranslation = gamepad1.left_stick_y  * 4;
-            requestedRadialTranslation  = gamepad1.right_stick_x * 0.1;
+            requestedLinearXTranslation = gamepad1.left_stick_x  * 1f;
+            requestedLinearYTranslation = gamepad1.left_stick_y  * 1f;
+            requestedRadialTranslation  = gamepad1.right_stick_x * 1f;
           }
 
-
+          //EXPERIMENTAL
           if (gamepad1.x) {
             int i;
-            if(!camera.updateFrameSet()) continue;
+            if (!camera.updateFrameSet()) continue;
             FrameData data = camera.getImageFrame(StreamType.DEPTH);
             int middleCone = -1;
             float depth = 100000000;
             int x = -1;
-            int scanlineY = (int) (data.getHeight() * 0.54);
+            float[] hsv = new float[3];
+            int scanlineY = (int) (data.getHeight() * 0.75);
             for (i = (int) (data.getWidth() * 0.2); i < data.getWidth() * 0.8; i++) {
-              int rgb = camera.getARGB(i, scanlineY);
-              int red = Color.red(rgb);
-              int green = Color.green(rgb);
-              int blue = Color.green(rgb);
-              double satfact = 0.6;
+              Color.colorToHSV(camera.getARGB(i, scanlineY), hsv);
+              double hue = hsv[0];
+              double sat = hsv[1];
+              double val = hsv[2];
               if (camera.getDistance(i, scanlineY) != 0 && camera.getDistance(i, scanlineY) < depth) {
-                if((red * satfact > green && red * satfact > blue) || (blue * satfact > green && blue * satfact > red)) {
+                if ((hueRange(hue, 220, 260) || hueRange(hue, 320, 10)) && sat > 0.3) {
                   x = i;
                   depth = camera.getDistance(i, scanlineY);
                 }
               }
             }
+
+
             int leftSideCone = -1;
             int rightSideCone = -1;
-            int notConeCountdown = 3;
-            for(i = x; i >= 0; i--){
-              int rgb = camera.getARGB(i, scanlineY);
-              int red = Color.red(rgb);
-              int green = Color.green(rgb);
-              int blue = Color.green(rgb);
-              double satfact = 0.6;
-              if((red * satfact > green && red * satfact > blue) || (blue * satfact > green && blue * satfact > red)) {
-                leftSideCone = i;
-                notConeCountdown = 3;
+            int notConeTolerance = 5;
+            int notConeCountdown = notConeTolerance;
+
+
+            boolean redCone;
+
+            {
+              Color.colorToHSV(camera.getARGB(x, scanlineY), hsv);
+              double hue = hsv[0];
+              redCone = !hueRange(hue, 220, 260);
+            }
+
+            StringBuilder hueString = new StringBuilder();
+            StringBuilder satString = new StringBuilder();
+            StringBuilder valString = new StringBuilder();
+
+
+            for(i = x; i >= 0; i-=2){
+              Color.colorToHSV(camera.getARGB(i, scanlineY), hsv);
+              double hue = hsv[0];
+              double sat = hsv[1];
+              double val = hsv[2];
+              if(((hueRange(hue, 220, 260) && !redCone) || (hueRange(hue, 330, 10) && redCone)) && sat > 0.3) {
+                if(notConeCountdown == notConeTolerance){
+                  hueString.insert (0, String.format("%03.0f ", hue));
+                  satString.insert (0, String.format("%.2f ", sat).substring(1));
+                  valString.insert (0, String.format("%.2f ", val).substring(1));
+                  leftSideCone = i;
+                } else notConeCountdown++;
               }else{
                 if(notConeCountdown == 0){
                   break;
@@ -184,17 +214,21 @@ public class RooksLegacySmartMove extends LinearOpMode {
                 notConeCountdown--;
               }
             }
-            notConeCountdown = 3;
+            notConeCountdown = notConeTolerance;
             if(leftSideCone == -1) continue;
-            for(i = x; i <= data.getWidth(); i++){
-              int rgb = camera.getARGB(i, scanlineY);
-              int red = Color.red(rgb);
-              int green = Color.green(rgb);
-              int blue = Color.green(rgb);
-              double satfact = 0.6;
-              if((red * satfact > green && red * satfact > blue) || (blue * satfact > green && blue * satfact > red)) {
-                notConeCountdown = 3;
-                rightSideCone = i;
+
+            for(i = x; i <= data.getWidth(); i+=2){
+              Color.colorToHSV(camera.getARGB(i, scanlineY), hsv);
+              double hue = hsv[0];
+              double sat = hsv[1];
+              double val = hsv[2];
+              if(((hueRange(hue, 220, 260) && !redCone) || (hueRange(hue, 330, 10) && redCone)) && sat > 0.3) {
+                if(notConeCountdown == notConeTolerance){
+                  hueString.append(String.format("%03.0f ", hue));
+                  satString.append (String.format("%.2f ", sat).substring(1));
+                  valString.append (String.format("%.2f ", val).substring(1));
+                  rightSideCone = i;
+                } else notConeCountdown++;
               }else{
                 if(notConeCountdown == 0){
                   break;
@@ -203,12 +237,26 @@ public class RooksLegacySmartMove extends LinearOpMode {
                 notConeCountdown--;
               }
             }
+
+            hueString.insert (0, "Hue: ");
+            satString.insert (0, "Sat: ");
+            valString.insert (0, "Val: ");
+            System.out.println(hueString);
+            System.out.println(satString);
+            System.out.println(valString);
+
             if(rightSideCone == -1) continue;
             middleCone = (leftSideCone + rightSideCone) / 2;
             int coneWidth = rightSideCone - leftSideCone;
             System.out.println("CONEWIDTH: " + coneWidth);
-            int distanceFromMiddle = data.getWidth() / 2 - middleCone;
+            int distanceFromMiddle = data.getWidth() / 2 - middleCone - 40;
             double degreesPerPixel = 90.0 / data.getWidth();
+
+            // Best fit equation
+            double pseudoDistance = 0.571 * Math.tan(Math.toRadians(-0.046 * (coneWidth - 53) + 90.0)) - 3.3;
+
+            drive.updatePoseEstimate();
+            drive.followTrajectory(drive.trajectoryBuilder(drive.getPoseEstimate()).forward(pseudoDistance).build());
 
             if(middleCone < 241){
               System.out.println("Closer than should be");
@@ -247,7 +295,7 @@ public class RooksLegacySmartMove extends LinearOpMode {
   }
 
   /**
-   * Describe this function...
+   * Describe this function....
    */
   private void moveLift(double lift_distance) {
     lift.setTargetPosition((int) ((lift_distance / circumferenceInInches) * encoderTicksPerRotation));
@@ -258,5 +306,13 @@ public class RooksLegacySmartMove extends LinearOpMode {
             -requestedLinearYTranslation,
             -requestedLinearXTranslation
     ).rotated(-drive.getPoseEstimate().getHeading());
+  }
+
+  private boolean range(double x, double min, double max){
+    return (min < x && x < max);
+  }
+  private boolean hueRange(double x, double from, double to){
+    if(from < to) return range(x, from, to);
+    return (range(x, from, 360) || range(x, 0, to));
   }
 }

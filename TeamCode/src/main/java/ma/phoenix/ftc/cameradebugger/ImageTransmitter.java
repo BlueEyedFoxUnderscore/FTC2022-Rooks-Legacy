@@ -35,10 +35,10 @@ public class ImageTransmitter {
             int i;
             int j=0;
             for (i = 0; i + CHUNK_SIZE <= frameBuffer.length; i += CHUNK_SIZE) {
-                if(j++>0) {
+                if(j++>10) {
                    j=0;
                    try {
-                       Thread.sleep(100);
+                       Thread.sleep(20);
                    } catch (InterruptedException e) {
                        e.printStackTrace();
                    }
