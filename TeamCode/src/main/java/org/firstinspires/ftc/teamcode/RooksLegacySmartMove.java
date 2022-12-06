@@ -11,11 +11,13 @@ import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.DcMotorSimple;
+import com.qualcomm.robotcore.hardware.DistanceSensor;
 import com.qualcomm.robotcore.hardware.Servo;
 import com.qualcomm.robotcore.util.ElapsedTime;
 import com.sun.tools.javac.util.Pair;
 
 import org.firstinspires.ftc.robotcore.external.JavaUtil;
+import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
 import org.firstinspires.ftc.teamcode.drive.SampleMecanumDrive;
 
 import kotlin.Triple;
@@ -33,6 +35,7 @@ import ma.phoenix.ftc.realsensecamera.exceptions.UnsupportedStreamTypeException;
 @TeleOp(name = "Rooks Legacy Smart Move")
 public class RooksLegacySmartMove extends LinearOpMode {
 
+  private DistanceSensor dist;
   private ConfigurableRealSenseCamera camera = null;
 
   private DcMotor lift;
@@ -48,6 +51,7 @@ public class RooksLegacySmartMove extends LinearOpMode {
 
   boolean rightTriggerAlreadyPressed = false;
   boolean leftTriggerAlreadyPressed  = false;
+
   /**
    * This function is executed when this Op Mode is selected from the Driver Station.
    */
@@ -56,14 +60,18 @@ public class RooksLegacySmartMove extends LinearOpMode {
 
     try {
       camera = new ConfigurableRealSenseCamera(hardwareMap, () -> isStopRequested());
+      dist = hardwareMap.get(DistanceSensor.class, "dist");
       ElapsedTime delay;
-      int liftPosition;
+      int liftPosition=0;
       drive = new SampleMecanumDrive(hardwareMap);
 
       lift = hardwareMap.get(DcMotor.class, "lift");
       claw = hardwareMap.get(Servo.class, "claw");
 
+
+      //INFO Previous f was 12.411
       ((DcMotorEx) lift).setVelocityPIDFCoefficients(0, 0, 0, 12.411);
+      //INFO Previous P was 15
       ((DcMotorEx) lift).setPositionPIDFCoefficients(15);
       // Put initialization blocks here.
 
@@ -76,7 +84,7 @@ public class RooksLegacySmartMove extends LinearOpMode {
 
       delay = new ElapsedTime();
 
-      while (delay.seconds() < 0.5) {
+      while (delay.seconds() < 1.0) {
         telemetry.addData("key", delay);
         telemetry.update();
       }
@@ -90,10 +98,9 @@ public class RooksLegacySmartMove extends LinearOpMode {
       camera.switchConfig(findCone);
 
       lift.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
-      lift.setMode(DcMotor.RunMode.RUN_TO_POSITION);
       lift.setPower(0.3);
+      lift.setMode(DcMotor.RunMode.RUN_TO_POSITION);
 
-      liftPosition = 0;
       waitForStart();
 
       if (opModeIsActive()) {
@@ -105,33 +112,39 @@ public class RooksLegacySmartMove extends LinearOpMode {
               liftPosition += 1;
               rightTriggerAlreadyPressed = true;
             }
-          }
-          else rightTriggerAlreadyPressed = false;
+          } else rightTriggerAlreadyPressed = false;
 
-          if (gamepad1.left_bumper)  {
-            if(!leftTriggerAlreadyPressed){
+          if (gamepad1.left_bumper) {
+            if (!leftTriggerAlreadyPressed) {
               liftPosition -= 1;
               leftTriggerAlreadyPressed = true;
             }
-          }
-          else leftTriggerAlreadyPressed  = false;
+          } else leftTriggerAlreadyPressed = false;
 
-          if (gamepad1.dpad_up)    liftPosition = 4;
+          if (gamepad1.dpad_up) liftPosition = 4;
           if (gamepad1.dpad_right) liftPosition = 3;
-          if (gamepad1.dpad_down)  liftPosition = 2;
-          if (gamepad1.dpad_left)  liftPosition = 1;
-          if (gamepad1.y)          liftPosition = 0;
+          if (gamepad1.dpad_down) liftPosition = 2;
+          if (gamepad1.dpad_left) liftPosition = 1;
+          if (gamepad1.y) liftPosition = 0;
 
           if (liftPosition < 0) liftPosition = 0;
           if (liftPosition > 4) liftPosition = 4;
 
-          if (liftPosition < 2){
-            lift.setPower(0.5);
-          } else {
-            lift.setPower(1);
+          if(((DcMotorEx) lift).getVelocity() < 20){
+            if (lift.getCurrentPosition() < ((14 / circumferenceInInches) * encoderTicksPerRotation)) {
+              lift.setPower(0.15);
+            } else {
+              lift.setPower(0.5);
+            }
+          } else if(((DcMotorEx) lift).getVelocity() > 20) {
+            if(lift.getCurrentPosition() < ((7.5 / circumferenceInInches) * encoderTicksPerRotation)){
+              lift.setPower(0.5);
+            } else {
+              lift.setPower(1.0);
+            }
           }
 
-          if (liftPosition == 0) moveLift(0.00);
+          if (liftPosition == 0) moveLift(0);
           if (liftPosition == 1) moveLift(2.75);
           if (liftPosition == 2) moveLift(14.5);
           if (liftPosition == 3) moveLift(24.5);
@@ -223,8 +236,8 @@ public class RooksLegacySmartMove extends LinearOpMode {
                 rightSideCone = extentParameters.getRightSide();
                 leftSideCone  = extentParameters.getLeftSide() ;
                 middleCone    = extentParameters.getMiddle()   ;
-                coneWidth     = extentParameters.getWidth()    ;
-                coneRimWidth  = coneRimWidth < coneWidth ? coneWidth : coneRimWidth;
+                int coneWidth2     = extentParameters.getWidth()    ;
+                coneRimWidth  = coneRimWidth < coneWidth2 ? coneWidth2 : coneRimWidth;
               }
               System.out.println("CONEWIDTH RIM: " + coneRimWidth);
             }
@@ -242,22 +255,43 @@ public class RooksLegacySmartMove extends LinearOpMode {
             // INFO: Best fit equation
             double pseudoDistance = 0.571 * Math.tan(Math.toRadians(-0.046 * (coneWidth - 53) + 90.0)) - 2.85; // Forward = less negative
 
-            drive.updatePoseEstimate();
-            drive.followTrajectory(drive.trajectoryBuilder(drive.getPoseEstimate()).forward(pseudoDistance).build());
 
             camera.drawHorizontalLine(scanlineY);
             camera.drawHorizontalLine((int)(data.getHeight()*.05));
 
-            camera.drawVerticalLine(middleCone);
-            camera.drawVerticalLine(leftSideCone);
-            camera.drawVerticalLine(rightSideCone);
-            camera.drawVerticalLine(nearestPointGuess);
+            //DISABLED:
+            // camera.drawVerticalLine(middleCone);
+            // camera.drawVerticalLine(leftSideCone);
+            // camera.drawVerticalLine(rightSideCone);
+            // camera.drawVerticalLine(nearestPointGuess);
             System.out.println("distance to detected cone point: "+depth);
 
             camera.transmitMonochromeImage();
 
-            drive.turn(Math.toRadians(degreesPerPixel * distanceFromMiddle));
+            double turnAngle = Math.toRadians(degreesPerPixel * distanceFromMiddle);
+
+            drive.turn(turnAngle);
             System.out.println(-Math.toRadians(degreesPerPixel * distanceFromMiddle));
+
+            double[] distances = new double[5];
+
+            for(int i1 = 1; i1 <= 5; i1++){
+              distances[i1 - 1] = dist.getDistance(DistanceUnit.INCH);
+            }
+
+            double averageDist = 0;
+
+            for(double dist : distances){
+              averageDist += dist;
+            }
+
+            averageDist /= distances.length;
+
+            drive.updatePoseEstimate();
+
+            if(Math.abs(turnAngle) < 10) {
+              drive.followTrajectory(drive.trajectoryBuilder(drive.getPoseEstimate()).forward(averageDist - 3.34646).build());
+            }
           } else {
             Vector2d requestedLinearInput = requestedLinearDriveInput();
             drive.setWeightedDrivePower(new Pose2d(requestedLinearInput.getX(), requestedLinearInput.getY(), -requestedRadialTranslation));
@@ -290,8 +324,9 @@ public class RooksLegacySmartMove extends LinearOpMode {
   /**
    * Describe this function....
    */
-  private void moveLift(double lift_distance) {
-    lift.setTargetPosition((int) ((lift_distance / circumferenceInInches) * encoderTicksPerRotation));
+  private void moveLift(double liftDistance) {
+    lift.setMode(DcMotor.RunMode.RUN_TO_POSITION);
+    lift.setTargetPosition((int) ((liftDistance / circumferenceInInches) * encoderTicksPerRotation));
   }
 
   private Vector2d requestedLinearDriveInput(){
@@ -398,6 +433,7 @@ public class RooksLegacySmartMove extends LinearOpMode {
     notConeCountdown = notConeTolerance;
 
     if(debug){
+
       hueString = new StringBuilder("HUE: ");
       satString = new StringBuilder("SAT: ");
       valString = new StringBuilder("VAL: ");
