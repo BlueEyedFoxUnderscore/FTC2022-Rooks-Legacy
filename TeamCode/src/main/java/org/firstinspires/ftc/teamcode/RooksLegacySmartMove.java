@@ -52,6 +52,10 @@ public class RooksLegacySmartMove extends LinearOpMode {
   boolean rightTriggerAlreadyPressed = false;
   boolean leftTriggerAlreadyPressed  = false;
 
+  boolean goingUp;
+  int previousLiftPosition;
+  int liftPosition;
+
   /**
    * This function is executed when this Op Mode is selected from the Driver Station.
    */
@@ -62,7 +66,11 @@ public class RooksLegacySmartMove extends LinearOpMode {
       camera = new ConfigurableRealSenseCamera(hardwareMap, () -> isStopRequested());
       dist = hardwareMap.get(DistanceSensor.class, "dist");
       ElapsedTime delay;
-      int liftPosition=0;
+
+      liftPosition = 1;
+      previousLiftPosition = 0;
+      goingUp = true;
+
       drive = new SampleMecanumDrive(hardwareMap);
 
       lift = hardwareMap.get(DcMotor.class, "lift");
@@ -132,17 +140,20 @@ public class RooksLegacySmartMove extends LinearOpMode {
           if (liftPosition < 0) liftPosition = 0;
           if (liftPosition > 5) liftPosition = 5;
 
-          if(((DcMotorEx) lift).getVelocity() > 20){
+          if(goingUp){
             if(lift.getCurrentPosition() > ((7.5 / circumferenceInInches) * encoderTicksPerRotation)){
               lift.setPower(1.0);
             } else {
               lift.setPower(0.5);
             }
-          } else if(((DcMotorEx) lift).getVelocity() < -20) {
+          } else {
             if (lift.getCurrentPosition() > ((15 / circumferenceInInches) * encoderTicksPerRotation)) {
               lift.setPower(0.1);
             } else {
-              lift.setPower(0.15);
+              if (liftPosition == 0) {
+                lift.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
+                lift.setPower(-0.2);
+              } else lift.setPower(0.15);
             }
           }
 
@@ -152,6 +163,10 @@ public class RooksLegacySmartMove extends LinearOpMode {
           if (liftPosition == 3) moveLift(14.5);
           if (liftPosition == 4) moveLift(24.5);
           if (liftPosition == 5) moveLift(34.5);
+
+          if (liftPosition < previousLiftPosition) goingUp = false;
+          if (liftPosition > previousLiftPosition) goingUp = true ;
+          previousLiftPosition = liftPosition;
 
           if ((gamepad1.right_trigger > 0.5)) claw.setPosition(30.0 / 190); // In pressed pos
           else claw.setPosition(12.0 / 190); // In release pos
@@ -329,6 +344,7 @@ public class RooksLegacySmartMove extends LinearOpMode {
    * Describe this function....
    */
   private void moveLift(double liftDistance) {
+    lift.setMode(DcMotor.RunMode.RUN_TO_POSITION);
     lift.setTargetPosition((int) ((liftDistance / circumferenceInInches) * encoderTicksPerRotation));
   }
 
@@ -444,7 +460,7 @@ public class RooksLegacySmartMove extends LinearOpMode {
       valString = new StringBuilder("VAL: ");
     }
 
-    for(i = startX; i <= data.getWidth(); i+=2){
+    for(i = startX; i < data.getWidth(); i+=2){
       Color.colorToHSV(camera.getARGB(i, scanlineY), hsv);
       double hue = hsv[0];
       double sat = hsv[1];
