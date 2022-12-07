@@ -133,16 +133,16 @@ public class RooksLegacySmartMove extends LinearOpMode {
           if (liftPosition > 5) liftPosition = 5;
 
           if(((DcMotorEx) lift).getVelocity() > 20){
-            if(lift.getCurrentPosition() < ((7.5 / circumferenceInInches) * encoderTicksPerRotation)){
-              lift.setPower(0.5);
-            } else {
+            if(lift.getCurrentPosition() > ((7.5 / circumferenceInInches) * encoderTicksPerRotation)){
               lift.setPower(1.0);
+            } else {
+              lift.setPower(0.5);
             }
           } else if(((DcMotorEx) lift).getVelocity() < -20) {
-            if (lift.getCurrentPosition() < ((14 / circumferenceInInches) * encoderTicksPerRotation)) {
-              lift.setPower(0.15);
+            if (lift.getCurrentPosition() > ((15 / circumferenceInInches) * encoderTicksPerRotation)) {
+              lift.setPower(0.1);
             } else {
-              lift.setPower(0.5);
+              lift.setPower(0.15);
             }
           }
 
@@ -195,6 +195,7 @@ public class RooksLegacySmartMove extends LinearOpMode {
             int notConeCountdown = notConeTolerance;
             float depth;
 
+            if(positionAndHueRangeIndex == null) continue;
             boolean redCone = (positionAndHueRangeIndex.getSecond() == 1);// INFO: If the hue range is 1, then that indicates the first range, which is the hue range for RED.
             nearestPointGuess = positionAndHueRangeIndex.getFirst();
             depth = positionAndHueRangeIndex.getThird();
@@ -355,7 +356,7 @@ public class RooksLegacySmartMove extends LinearOpMode {
 
     float[] hsv = new float[3];
 
-    int associatedColourRange = 0;
+    int associatedColourRange = -1;
 
     int avgCount=0;
     for (i = (int) (data.getWidth() * 0.2); i < data.getWidth() * 0.8; i++) {
@@ -378,6 +379,8 @@ public class RooksLegacySmartMove extends LinearOpMode {
         }
       }
     }
+
+    if(associatedColourRange == -1) return null;
     return new Triple<>(x, associatedColourRange, depth);
   }
 
