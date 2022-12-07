@@ -443,7 +443,7 @@ public class ConfigurableRealSenseCamera implements AutoCloseable{
         ma.phoenix.ftc.cameradebugger.ImageTransmitter.transmitImage(ImageType.MONOCHROME_Y1, frameBufferMonochrome, width, height);
     }
 
-    public void drawHorizontalLine(int y) throws NoFrameSetYetAcquiredException, UnsupportedStreamTypeException, StreamTypeNotEnabledException {
+    public void drawHorizontalLine(int y, boolean white) throws NoFrameSetYetAcquiredException, UnsupportedStreamTypeException, StreamTypeNotEnabledException {
 
         FrameData data = this.getImageFrame(StreamType.INFRARED);
         byte frameBuffer[] = data.getFrameBuffer();
@@ -454,11 +454,12 @@ public class ConfigurableRealSenseCamera implements AutoCloseable{
 
         for (int x = 0; x < width; x++)
         {
-            frameBuffer[y*stride+x]=(byte)255;
+            if(y*stride+x>=frameBuffer.length) System.out.println("Draw horizontal error: x="+x+" and y="+y+" but image width:= "+width+" height: "+height);
+            frameBuffer[y*stride+x]=white?(byte)255:(byte)0;
         }
     }
 
-    public void drawVerticalLine(int x) throws NoFrameSetYetAcquiredException, UnsupportedStreamTypeException, StreamTypeNotEnabledException {
+    public void drawVerticalLine(int x, boolean white) throws NoFrameSetYetAcquiredException, UnsupportedStreamTypeException, StreamTypeNotEnabledException {
 
         FrameData data = this.getImageFrame(StreamType.INFRARED);
         byte frameBuffer[] = data.getFrameBuffer();
@@ -467,10 +468,42 @@ public class ConfigurableRealSenseCamera implements AutoCloseable{
         int height = data.getHeight();
         int stride = data.getStride();
 
+        System.out.println("Making vertical line at: "+x+" image width: "+width);
+
         for (int y = 0; y < height; y++)
         {
-            frameBuffer[y*stride+x]=(byte)255;
+            if(y*stride+x>=frameBuffer.length) System.out.println("Draw vertical error: x="+x+" and y="+y+" but image width:= "+width+" height: "+height);
+            frameBuffer[y*stride+x]=white?(byte)255:(byte)0;
         }
+    }
+
+    public void drawDot(int x, int y, boolean white) throws NoFrameSetYetAcquiredException, UnsupportedStreamTypeException, StreamTypeNotEnabledException {
+        FrameData data = this.getImageFrame(StreamType.INFRARED);
+        byte frameBuffer[] = data.getFrameBuffer();
+
+        int width = data.getWidth();
+        int height = data.getHeight();
+        int stride = data.getStride();
+
+        if(y*stride+x>=frameBuffer.length) System.out.println("Draw dot Error: x="+x+" and y="+y+" but image width: "+width+" height: "+height);
+        frameBuffer[y*stride+x]=white?(byte)255:(byte)0;
+        try{
+            frameBuffer[y*stride+x+1]=white?(byte)255:(byte)0;
+            frameBuffer[y*stride+x-1]=white?(byte)255:(byte)0;
+            frameBuffer[(y+1)*stride+x]=white?(byte)255:(byte)0;
+            frameBuffer[(y-1)*stride+x]=white?(byte)255:(byte)0;
+        } catch (Exception e){}
+    }
+    public void drawSmallDot(int x, int y, boolean white) throws NoFrameSetYetAcquiredException, UnsupportedStreamTypeException, StreamTypeNotEnabledException {
+        FrameData data = this.getImageFrame(StreamType.INFRARED);
+        byte frameBuffer[] = data.getFrameBuffer();
+
+        int width = data.getWidth();
+        int height = data.getHeight();
+        int stride = data.getStride();
+
+        if(y*stride+x>=frameBuffer.length) System.out.println("Draw dot Error: x="+x+" and y="+y+" but image width: "+width+" height: "+height);
+        frameBuffer[y*stride+x]=white?(byte)255:(byte)0;
     }
 
     private int byteToInt(byte x) {return x & 0xff;}
