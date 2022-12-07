@@ -84,7 +84,7 @@ public class RooksLegacySmartMove extends LinearOpMode {
 
       delay = new ElapsedTime();
 
-      while (delay.seconds() < 1.0) {
+      while (delay.seconds() < 1) {
         telemetry.addData("key", delay);
         telemetry.update();
       }
@@ -107,60 +107,63 @@ public class RooksLegacySmartMove extends LinearOpMode {
         while (opModeIsActive()) {
           drive.updatePoseEstimate();
           // Put loop blocks here.
-          if (gamepad1.right_bumper) {
+
+          if (gamepad1.left_bumper) {
             if (!rightTriggerAlreadyPressed) {
               liftPosition += 1;
               rightTriggerAlreadyPressed = true;
             }
           } else rightTriggerAlreadyPressed = false;
 
-          if (gamepad1.left_bumper) {
+          if (gamepad1.right_bumper) {
             if (!leftTriggerAlreadyPressed) {
               liftPosition -= 1;
               leftTriggerAlreadyPressed = true;
             }
           } else leftTriggerAlreadyPressed = false;
 
-          if (gamepad1.dpad_up) liftPosition = 4;
-          if (gamepad1.dpad_right) liftPosition = 3;
-          if (gamepad1.dpad_down) liftPosition = 2;
-          if (gamepad1.dpad_left) liftPosition = 1;
-          if (gamepad1.y) liftPosition = 0;
+          if (gamepad1.dpad_up) liftPosition    = 5;
+          if (gamepad1.dpad_right) liftPosition = 4;
+          if (gamepad1.dpad_down) liftPosition  = 3;
+          if (gamepad1.dpad_left) liftPosition  = 2;
+          if (gamepad1.a) liftPosition          = 1;
+          if (gamepad1.y) liftPosition          = 0;
 
           if (liftPosition < 0) liftPosition = 0;
-          if (liftPosition > 4) liftPosition = 4;
+          if (liftPosition > 5) liftPosition = 5;
 
-          if(((DcMotorEx) lift).getVelocity() < 20){
-            if (lift.getCurrentPosition() < ((14 / circumferenceInInches) * encoderTicksPerRotation)) {
-              lift.setPower(0.15);
-            } else {
-              lift.setPower(0.5);
-            }
-          } else if(((DcMotorEx) lift).getVelocity() > 20) {
+          if(((DcMotorEx) lift).getVelocity() > 20){
             if(lift.getCurrentPosition() < ((7.5 / circumferenceInInches) * encoderTicksPerRotation)){
               lift.setPower(0.5);
             } else {
               lift.setPower(1.0);
             }
+          } else if(((DcMotorEx) lift).getVelocity() < -20) {
+            if (lift.getCurrentPosition() < ((14 / circumferenceInInches) * encoderTicksPerRotation)) {
+              lift.setPower(0.15);
+            } else {
+              lift.setPower(0.5);
+            }
           }
 
-          if (liftPosition == 0) moveLift(0);
+          if (liftPosition == 0) moveLift(0.00);
           if (liftPosition == 1) moveLift(2.75);
-          if (liftPosition == 2) moveLift(14.5);
-          if (liftPosition == 3) moveLift(24.5);
-          if (liftPosition == 4) moveLift(34.5);
+          if (liftPosition == 2) moveLift(8.00);
+          if (liftPosition == 3) moveLift(14.5);
+          if (liftPosition == 4) moveLift(24.5);
+          if (liftPosition == 5) moveLift(34.5);
 
-          if ((gamepad1.right_trigger > 0.5) || gamepad1.a) claw.setPosition(30.0 / 190); // In pressed pos
+          if ((gamepad1.right_trigger > 0.5)) claw.setPosition(30.0 / 190); // In pressed pos
           else claw.setPosition(12.0 / 190); // In release pos
 
           if (gamepad1.left_trigger > 0.5 || gamepad1.b) {
             requestedLinearXTranslation = gamepad1.left_stick_x  * 0.25f;
             requestedLinearYTranslation = gamepad1.left_stick_y  * 0.25f;
             requestedRadialTranslation  = gamepad1.right_stick_x * 0.25f;
-          } else if (liftPosition == 3 || liftPosition == 4) {
-            requestedLinearXTranslation = gamepad1.left_stick_x  * 0.5f;
-            requestedLinearYTranslation = gamepad1.left_stick_y  * 0.5f;
-            requestedRadialTranslation  = gamepad1.right_stick_x * 0.5f;
+          } else if (liftPosition == 5) {
+            requestedLinearXTranslation = gamepad1.left_stick_x  * 0.75f;
+            requestedLinearYTranslation = gamepad1.left_stick_y  * 0.75f;
+            requestedRadialTranslation  = gamepad1.right_stick_x * 0.75f;
           } else {
             requestedLinearXTranslation = gamepad1.left_stick_x  * 1f;
             requestedLinearYTranslation = gamepad1.left_stick_y  * 1f;
