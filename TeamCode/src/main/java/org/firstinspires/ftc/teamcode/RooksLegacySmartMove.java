@@ -72,7 +72,7 @@ public class RooksLegacySmartMove extends LinearOpMode {
       //INFO Previous f was 12.411
       ((DcMotorEx) lift).setVelocityPIDFCoefficients(0, 0, 0, 12.411);
       //INFO Previous P was 15
-      ((DcMotorEx) lift).setPositionPIDFCoefficients(15);
+      ((DcMotorEx) lift).setPositionPIDFCoefficients(10);
       // Put initialization blocks here.
 
       circumferenceInInches = 4.409;
