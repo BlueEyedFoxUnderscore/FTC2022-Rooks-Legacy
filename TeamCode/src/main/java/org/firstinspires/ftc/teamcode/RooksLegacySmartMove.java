@@ -52,6 +52,10 @@ public class RooksLegacySmartMove extends LinearOpMode {
   boolean rightTriggerAlreadyPressed = false;
   boolean leftTriggerAlreadyPressed  = false;
 
+  boolean goingUp;
+  int previousLiftPosition;
+  int liftPosition;
+
   /**
    * This function is executed when this Op Mode is selected from the Driver Station.
    */
@@ -62,7 +66,11 @@ public class RooksLegacySmartMove extends LinearOpMode {
       camera = new ConfigurableRealSenseCamera(hardwareMap, () -> isStopRequested());
       dist = hardwareMap.get(DistanceSensor.class, "dist");
       ElapsedTime delay;
-      int liftPosition=0;
+
+      liftPosition = 1;
+      previousLiftPosition = 0;
+      goingUp = true;
+
       drive = new SampleMecanumDrive(hardwareMap);
 
       lift = hardwareMap.get(DcMotor.class, "lift");
@@ -72,7 +80,7 @@ public class RooksLegacySmartMove extends LinearOpMode {
       //INFO Previous f was 12.411
       ((DcMotorEx) lift).setVelocityPIDFCoefficients(0, 0, 0, 12.411);
       //INFO Previous P was 15
-      ((DcMotorEx) lift).setPositionPIDFCoefficients(15);
+      ((DcMotorEx) lift).setPositionPIDFCoefficients(10);
       // Put initialization blocks here.
 
       circumferenceInInches = 4.409;
@@ -84,7 +92,7 @@ public class RooksLegacySmartMove extends LinearOpMode {
 
       delay = new ElapsedTime();
 
-      while (delay.seconds() < 1.0) {
+      while (delay.seconds() < 1) {
         telemetry.addData("key", delay);
         telemetry.update();
       }
@@ -107,57 +115,67 @@ public class RooksLegacySmartMove extends LinearOpMode {
         while (opModeIsActive()) {
           drive.updatePoseEstimate();
           // Put loop blocks here.
-          if (gamepad1.right_bumper) {
+
+          if (gamepad1.left_bumper) {
             if (!rightTriggerAlreadyPressed) {
               liftPosition += 1;
               rightTriggerAlreadyPressed = true;
             }
           } else rightTriggerAlreadyPressed = false;
 
-          if (gamepad1.left_bumper) {
+          if (gamepad1.right_bumper) {
             if (!leftTriggerAlreadyPressed) {
               liftPosition -= 1;
               leftTriggerAlreadyPressed = true;
             }
           } else leftTriggerAlreadyPressed = false;
 
-          if (gamepad1.dpad_up) liftPosition = 4;
-          if (gamepad1.dpad_right) liftPosition = 3;
-          if (gamepad1.dpad_down) liftPosition = 2;
-          if (gamepad1.dpad_left) liftPosition = 1;
-          if (gamepad1.y) liftPosition = 0;
+          if (gamepad1.dpad_up) liftPosition    = 5;
+          if (gamepad1.dpad_right) liftPosition = 4;
+          if (gamepad1.dpad_down) liftPosition  = 3;
+          if (gamepad1.dpad_left) liftPosition  = 2;
+          if (gamepad1.a) liftPosition          = 1;
+          if (gamepad1.y) liftPosition          = 0;
 
           if (liftPosition < 0) liftPosition = 0;
-          if (liftPosition > 4) liftPosition = 4;
+          if (liftPosition > 5) liftPosition = 5;
 
-          if(((DcMotorEx) lift).getVelocity() < 20){
-            if (lift.getCurrentPosition() < ((14 / circumferenceInInches) * encoderTicksPerRotation)) {
-              lift.setPower(0.15);
+          if(goingUp){
+            if(lift.getCurrentPosition() > ((7.5 / circumferenceInInches) * encoderTicksPerRotation)){
+              lift.setPower(1.0);
             } else {
               lift.setPower(0.5);
             }
-          } else if(((DcMotorEx) lift).getVelocity() > 20) {
-            if(lift.getCurrentPosition() < ((7.5 / circumferenceInInches) * encoderTicksPerRotation)){
-              lift.setPower(0.5);
+          } else {
+            if (lift.getCurrentPosition() > ((15 / circumferenceInInches) * encoderTicksPerRotation)) {
+              lift.setPower(0.1);
             } else {
-              lift.setPower(1.0);
+              if (liftPosition == 0) {
+                lift.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
+                lift.setPower(-0.2);
+              } else lift.setPower(0.15);
             }
           }
 
-          if (liftPosition == 0) moveLift(0);
+          if (liftPosition == 0) moveLift(0.00);
           if (liftPosition == 1) moveLift(2.75);
-          if (liftPosition == 2) moveLift(14.5);
-          if (liftPosition == 3) moveLift(24.5);
-          if (liftPosition == 4) moveLift(34.5);
+          if (liftPosition == 2) moveLift(8.00);
+          if (liftPosition == 3) moveLift(14.5);
+          if (liftPosition == 4) moveLift(24.5);
+          if (liftPosition == 5) moveLift(34.5);
 
-          if ((gamepad1.right_trigger > 0.5) || gamepad1.a) claw.setPosition(30.0 / 190); // In pressed pos
+          if (liftPosition < previousLiftPosition) goingUp = false;
+          if (liftPosition > previousLiftPosition) goingUp = true ;
+          previousLiftPosition = liftPosition;
+
+          if ((gamepad1.right_trigger > 0.5)) claw.setPosition(30.0 / 190); // In pressed pos
           else claw.setPosition(12.0 / 190); // In release pos
 
           if (gamepad1.left_trigger > 0.5 || gamepad1.b) {
             requestedLinearXTranslation = gamepad1.left_stick_x  * 0.25f;
             requestedLinearYTranslation = gamepad1.left_stick_y  * 0.25f;
             requestedRadialTranslation  = gamepad1.right_stick_x * 0.25f;
-          } else if (liftPosition == 3 || liftPosition == 4) {
+          } else if (liftPosition == 5) {
             requestedLinearXTranslation = gamepad1.left_stick_x  * 0.5f;
             requestedLinearYTranslation = gamepad1.left_stick_y  * 0.5f;
             requestedRadialTranslation  = gamepad1.right_stick_x * 0.5f;
@@ -184,13 +202,14 @@ public class RooksLegacySmartMove extends LinearOpMode {
                     new Pair<>(320f, 30f ) };
 
             Triple<Integer, Integer, Float> positionAndHueRangeIndex = getNearestObjectWithHueRange(scanlineY, coneColourRanges);
-            if (positionAndHueRangeIndex==null) continue;
 
             int middleCone = -1;
             int leftSideCone = -1;
             int rightSideCone = -1;
             float depth;
 
+            if(positionAndHueRangeIndex == null) continue;
+            boolean redCone = (positionAndHueRangeIndex.getSecond() == 1);// INFO: If the hue range is 1, then that indicates the first range, which is the hue range for RED.
             nearestPointGuess = positionAndHueRangeIndex.getFirst();
             depth = positionAndHueRangeIndex.getThird();
             //DISABLED:
@@ -308,6 +327,7 @@ public class RooksLegacySmartMove extends LinearOpMode {
    * Describe this function....
    */
   private void moveLift(double liftDistance) {
+    lift.setMode(DcMotor.RunMode.RUN_TO_POSITION);
     lift.setTargetPosition((int) ((liftDistance / circumferenceInInches) * encoderTicksPerRotation));
   }
 
@@ -359,12 +379,11 @@ public class RooksLegacySmartMove extends LinearOpMode {
       }
     }
 
-    if (associatedColourRange==-1) return null;
-
+    if(associatedColourRange == -1) return null;
     return new Triple<>(x, associatedColourRange, depth);
   }
 
-  private ObjectExtentParameters findObjectExtentUsingHueRanges(int startX, int scanlineY, Pair<Float, Float>[] hueRanges, boolean debug) throws NoFrameSetYetAcquiredException, UnsupportedStreamTypeException, StreamTypeNotEnabledException {
+  private ObjectExtentParameters findObjectExtentUsingHueRanges   (int startX, int scanlineY, Pair<Float, Float>[] hueRanges, boolean debug) throws NoFrameSetYetAcquiredException, UnsupportedStreamTypeException, StreamTypeNotEnabledException {
     FrameData data = camera.getImageFrame(StreamType.COLOR);
 
     int i;
@@ -377,10 +396,10 @@ public class RooksLegacySmartMove extends LinearOpMode {
     StringBuilder satString = null;
     StringBuilder valString = null;
 
-    int leftSideCone = -1;
+    int leftSideCone  = -1;
     int rightSideCone = -1;
-    int coneWidth = -1;
-    int middleCone = -1;
+    int coneWidth     = -1;
+    int middleCone    = -1;
 
     if (debug) {
       hueString = new StringBuilder();
@@ -394,12 +413,6 @@ public class RooksLegacySmartMove extends LinearOpMode {
       for (int y = (height - 1) - (int) (370.0 / 1800.0 * (height - 1)); y < height; y++) {
         camera.drawHorizontalLine(y, false);
       }
-      for (int index = 0; index < hueRanges.length; index++) {
-        camera.drawHorizontalLine((height-1)-(int)(hueRanges[index].fst/1800.0*(height-1)), true);
-        camera.drawHorizontalLine((height-1)-(int)(hueRanges[index].fst/1800.0*(height-1)-index), true);
-        camera.drawHorizontalLine((height-1)-(int)(hueRanges[index].snd/1800.0*(height-1)), true);
-        camera.drawHorizontalLine((height-1)-(int)(hueRanges[index].snd/1800.0*(height-1)-index), true);
-      }
     }
     if(debug) {
       for (i = 0; i < data.getWidth(); i++) {
@@ -410,6 +423,7 @@ public class RooksLegacySmartMove extends LinearOpMode {
         camera.drawSmallDot(i, (height - 1) - (int) (hue / 1800.0 * (height - 1)), true);
       }
     }
+
     for(i = startX; i >= 0; i-=2){
       boolean huefound = false;
       Color.colorToHSV(camera.getARGB(i, scanlineY), hsv);
@@ -487,7 +501,6 @@ public class RooksLegacySmartMove extends LinearOpMode {
     coneWidth  =  rightSideCone - leftSideCone;
 
     if (leftSideCone==-1||rightSideCone==-1) return null;
-
     return new ObjectExtentParameters(leftSideCone, rightSideCone, middleCone, coneWidth);
   }
 
