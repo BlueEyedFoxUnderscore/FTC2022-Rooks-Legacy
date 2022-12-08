@@ -19,6 +19,7 @@ import com.sun.tools.javac.util.Pair;
 import org.firstinspires.ftc.robotcore.external.JavaUtil;
 import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
 import org.firstinspires.ftc.teamcode.drive.SampleMecanumDrive;
+import org.firstinspires.ftc.teamcode.exceptions.NoObjectFoundException;
 
 import kotlin.Triple;
 import ma.phoenix.ftc.realsensecamera.ConfigurableRealSenseCamera;
@@ -191,92 +192,48 @@ public class RooksLegacySmartMove extends LinearOpMode {
             FrameData data = camera.getImageFrame(StreamType.DEPTH);
             int scanlineY = (int) (data.getHeight() * 0.75);
 
-            int i;
-            int nearestPointGuess = -1;
+            int nearestPointGuess;
 
-
-            float[] hsv = new float[3];
 
             Pair<Float, Float>[] coneColourRanges = new Pair[]{
                     new Pair<>(220f, 260f),
                     new Pair<>(320f, 10f ) };
 
-            Triple<Integer, Integer, Float> positionAndHueRangeIndex = getNearestObjectWithHueRange(scanlineY, coneColourRanges);
+            Triple<Integer, Integer, Float> positionAndHueRangeIndex;
 
-            int middleCone = -1;
-            int leftSideCone = -1;
-            int rightSideCone = -1;
-            int notConeTolerance = 5;
-            int notConeCountdown = notConeTolerance;
-            float depth;
-
-            if(positionAndHueRangeIndex == null) continue;
-            boolean redCone = (positionAndHueRangeIndex.getSecond() == 1);// INFO: If the hue range is 1, then that indicates the first range, which is the hue range for RED.
-            nearestPointGuess = positionAndHueRangeIndex.getFirst();
-            depth = positionAndHueRangeIndex.getThird();
-            //DISABLED:
-            // - float depth = 100000000;
-            // - for (i = (int) (data.getWidth() * 0.2); i < data.getWidth() * 0.8; i++) {
-            // -   Color.colorToHSV(camera.getARGB(i, scanlineY), hsv);
-            // -   double hue = hsv[0];
-            // -   double sat = hsv[1];
-            // -   double val = hsv[2];
-            // -   if (camera.getDistance(i, scanlineY) != 0 && camera.getDistance(i, scanlineY) < depth) {
-            // -     if ((hueRange(hue, 220, 260) || hueRange(hue, 320, 10)) && sat > 0.3) {
-            // -       nearestPointGuess = i;
-            // -       depth = camera.getDistance(i, scanlineY);
-            // -     }
-            // -   }
-            // - }
-
-            int coneWidth;
-
-
-
-            ObjectExtentParameters extentParameters = findObjectExtentUsingHueRange(nearestPointGuess, scanlineY, redCone? coneColourRanges[1] : coneColourRanges[0], false);
-            rightSideCone = extentParameters.getRightSide();
-            leftSideCone  = extentParameters.getLeftSide() ;
-            middleCone    = extentParameters.getMiddle()   ;
-            coneWidth     = extentParameters.getWidth()    ;
-
-            extentParameters = findObjectExtentUsingHueRange(middleCone, (int)(data.getHeight() * 0.05), redCone? coneColourRanges[1] : coneColourRanges[0], false);
-            camera.drawHorizontalLine((int)(data.getHeight()*.05));
-
-            int duoConeWidth = extentParameters.getWidth();
-
-            boolean onlyOneCone = duoConeWidth < 45;
-
-            if(!onlyOneCone){
-              int coneRimWidth = 0;
-
-              for(float f = 0.75f; f <= 1f; f += 0.02f){
-                extentParameters = findObjectExtentUsingHueRange(middleCone, ((int) (data.getHeight() * f)), redCone? coneColourRanges[1] : coneColourRanges[0], false);
-                camera.drawHorizontalLine((int)(data.getHeight() * f));
-                rightSideCone = extentParameters.getRightSide();
-                leftSideCone  = extentParameters.getLeftSide() ;
-                middleCone    = extentParameters.getMiddle()   ;
-                int coneWidth2     = extentParameters.getWidth()    ;
-                coneRimWidth  = coneRimWidth < coneWidth2 ? coneWidth2 : coneRimWidth;
-              }
-              System.out.println("CONEWIDTH RIM: " + coneRimWidth);
+            try {
+              positionAndHueRangeIndex = getNearestObjectWithHueRange(scanlineY, coneColourRanges);
+            } catch (NoObjectFoundException e) {
+              continue;
             }
 
-            System.out.println("doublecone width: "+ duoConeWidth);
-            if(rightSideCone == -1) continue;
+            nearestPointGuess = positionAndHueRangeIndex.getFirst();
+            float depth = positionAndHueRangeIndex.getThird();
+
+
+            ObjectExtentParameters extentParameters = null;
+            try {
+              extentParameters = findObjectExtentUsingHueRanges(nearestPointGuess, scanlineY, coneColourRanges, false);
+            } catch (NoObjectFoundException e) {
+              continue;
+            }
+
+            int rightSideCone = extentParameters.getRightSide();
+            int leftSideCone = extentParameters.getLeftSide();
+            int middleCone = extentParameters.getMiddle();
+            int coneWidth = extentParameters.getWidth();
+
+            camera.drawHorizontalLine((int)(data.getHeight()*.05), true);
 
             System.out.println("CONEWIDTH: " + coneWidth);
             int distanceFromMiddle = data.getWidth() / 2 - middleCone - 40;
             double degreesPerPixel = 90.0 / data.getWidth();
 
-            // INFO: Best fit equation goes crazy after this point, plus we can't see a cone out that far.
+            // INFO: We can't see a cone out that far.
             if(coneWidth < 90) continue;
 
-            // INFO: Best fit equation
-            double pseudoDistance = 0.571 * Math.tan(Math.toRadians(-0.046 * (coneWidth - 53) + 90.0)) - 2.85; // Forward = less negative
-
-
-            camera.drawHorizontalLine(scanlineY);
-            camera.drawHorizontalLine((int)(data.getHeight()*.05));
+            camera.drawHorizontalLine(scanlineY, true);
+            camera.drawHorizontalLine((int)(data.getHeight()*.05), true);
 
             //DISABLED:
             // camera.drawVerticalLine(middleCone);
@@ -363,7 +320,7 @@ public class RooksLegacySmartMove extends LinearOpMode {
     return (range(x, from, 360) || range(x, 0, to));
   }
 
-  private Triple<Integer, Integer, Float> getNearestObjectWithHueRange(int scanlineY, Pair<Float, Float>[] hueRanges) throws NoFrameSetYetAcquiredException, UnsupportedStreamTypeException, StreamTypeNotEnabledException {
+  private Triple<Integer, Integer, Float> getNearestObjectWithHueRange(int scanlineY, Pair<Float, Float>[] hueRanges) throws NoFrameSetYetAcquiredException, UnsupportedStreamTypeException, StreamTypeNotEnabledException, NoObjectFoundException {
     int i;
     FrameData data = camera.getImageFrame(StreamType.DEPTH);
     int middleCone = -1;
@@ -396,11 +353,11 @@ public class RooksLegacySmartMove extends LinearOpMode {
       }
     }
 
-    if(associatedColourRange == -1) return null;
+    if(associatedColourRange == -1) throw new NoObjectFoundException();
     return new Triple<>(x, associatedColourRange, depth);
   }
 
-  private ObjectExtentParameters findObjectExtentUsingHueRange(int startX, int scanlineY, Pair<Float, Float> hueRange, boolean debug) throws NoFrameSetYetAcquiredException, UnsupportedStreamTypeException, StreamTypeNotEnabledException {
+  private ObjectExtentParameters findObjectExtentUsingHueRanges(int startX, int scanlineY, Pair<Float, Float>[] hueRanges, boolean debug) throws NoFrameSetYetAcquiredException, UnsupportedStreamTypeException, StreamTypeNotEnabledException, NoObjectFoundException {
     FrameData data = camera.getImageFrame(StreamType.COLOR);
 
     int i;
@@ -424,12 +381,18 @@ public class RooksLegacySmartMove extends LinearOpMode {
       valString = new StringBuilder("VAL: ");
     }
 
+    boolean hueFound;
+
     for(i = startX; i >= 0; i-=2){
+      hueFound = false;
       Color.colorToHSV(camera.getARGB(i, scanlineY), hsv);
       double hue = hsv[0];
       double sat = hsv[1];
       double val = hsv[2];
-      if(hueRange(hue, hueRange.fst, hueRange.snd) && sat > 0.3) {
+      for (Pair<Float, Float> hueRange: hueRanges) {
+        if (hueRange(hue, hueRange.fst, hueRange.snd) && sat > 0.3) hueFound = true;
+      }
+      if (hueFound){
         if(notConeCountdown == notConeTolerance){
           if(debug) {
             hueString.insert(0, String.format("%03.0f ", hue));
@@ -447,6 +410,7 @@ public class RooksLegacySmartMove extends LinearOpMode {
         notConeCountdown--;
       }
     }
+
     if(debug){
       System.out.println(hueString + "\n" + satString + "\n" + valString);
     }
@@ -461,11 +425,13 @@ public class RooksLegacySmartMove extends LinearOpMode {
     }
 
     for(i = startX; i < data.getWidth(); i+=2){
+      hueFound = false;
       Color.colorToHSV(camera.getARGB(i, scanlineY), hsv);
       double hue = hsv[0];
       double sat = hsv[1];
       double val = hsv[2];
-      if(hueRange(hue, hueRange.fst, hueRange.snd) && sat > 0.3) {
+      for (Pair<Float, Float> hueRange: hueRanges) if (hueRange(hue, hueRange.fst, hueRange.snd) && sat > 0.3) hueFound = true;
+      if (hueFound) {
         if(notConeCountdown == notConeTolerance){
           if(debug) {
             hueString.append(String.format("%03.0f ", hue));
@@ -487,6 +453,8 @@ public class RooksLegacySmartMove extends LinearOpMode {
       System.out.println(hueString + "\n" + satString + "\n" + valString);
     }
 
+    if(rightSideCone == -1 || leftSideCone == -1) throw new NoObjectFoundException();
+
     middleCone = (leftSideCone + rightSideCone) / 2;
     coneWidth  =  rightSideCone - leftSideCone;
 
@@ -495,10 +463,10 @@ public class RooksLegacySmartMove extends LinearOpMode {
 
   class ObjectExtentParameters{
 
-    private int leftSide;
-    private int rightSide;
-    private int middle;
-    private int width;
+    private final int leftSide;
+    private final int rightSide;
+    private final int middle;
+    private final int width;
 
     public ObjectExtentParameters(int leftSide, int rightSide, int middle, int width){
       this.leftSide  =  leftSide;

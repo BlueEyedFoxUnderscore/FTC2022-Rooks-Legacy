@@ -14,13 +14,10 @@ import java.util.SplittableRandom;
 import org.firstinspires.ftc.teamcode.drive.SampleMecanumDrive;
 
 // Import roadrunner thingies
-import com.acmerobotics.roadrunner.geometry.Pose2d;
 import com.acmerobotics.roadrunner.trajectory.Trajectory;
 import com.acmerobotics.roadrunner.trajectory.TrajectoryBuilder;
 
 // Import robot general stuff 2.0
-import com.google.zxing.common.BitMatrix;
-import com.google.zxing.common.HybridBinarizer;
 import com.google.zxing.datamatrix.DataMatrixReader;
 import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
@@ -38,8 +35,6 @@ import com.qualcomm.robotcore.hardware.DcMotorSimple;
 
 import java.util.Hashtable;
 
-import ma.phoenix.ftc.cameradebugger.ImageTransmitter;
-import ma.phoenix.ftc.cameradebugger.ImageType;
 import ma.phoenix.ftc.realsensecamera.ConfigurableRealSenseCamera;
 import ma.phoenix.ftc.realsensecamera.FrameData;
 import ma.phoenix.ftc.realsensecamera.exceptions.NoFrameSetYetAcquiredException;
@@ -310,8 +305,8 @@ public class ParkingTest extends LinearOpMode {
                         }
                     }
                     if(x == -1) continue;
-                    camera.drawVerticalLine(x);
-                    camera.drawHorizontalLine(scanlineY);
+                    camera.drawVerticalLine(x, true);
+                    camera.drawHorizontalLine(scanlineY, true);
                     camera.transmitMonochromeImage();
                     //System.out.println(x);
                     int red = Color.red(camera.getARGB(x, scanlineY));
