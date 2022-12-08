@@ -353,11 +353,11 @@ public class RooksLegacySmartMove extends LinearOpMode {
       }
     }
 
-    if(associatedColourRange == -1) return null;
+    if(associatedColourRange == -1) throw new NoObjectFoundException();
     return new Triple<>(x, associatedColourRange, depth);
   }
 
-  private ObjectExtentParameters findObjectExtentUsingHueRanges   (int startX, int scanlineY, Pair<Float, Float>[] hueRanges, boolean debug) throws NoFrameSetYetAcquiredException, UnsupportedStreamTypeException, StreamTypeNotEnabledException {
+  private ObjectExtentParameters findObjectExtentUsingHueRanges(int startX, int scanlineY, Pair<Float, Float>[] hueRanges, boolean debug) throws NoFrameSetYetAcquiredException, UnsupportedStreamTypeException, StreamTypeNotEnabledException, NoObjectFoundException {
     FrameData data = camera.getImageFrame(StreamType.COLOR);
 
     int i;
@@ -406,20 +406,18 @@ public class RooksLegacySmartMove extends LinearOpMode {
       double hue = hsv[0];
       double sat = hsv[1];
       double val = hsv[2];
-
-
-      for (int index = 0; index < hueRanges.length; index++) {
-        if (hueRange(hue, hueRanges[index].fst, hueRanges[index].snd) && sat > 0.5 && val > 0.8) huefound=true;
+      for (Pair<Float, Float> hueRange: hueRanges) {
+        if (hueRange(hue, hueRange.fst, hueRange.snd) && sat > 0.3) hueFound = true;
       }
-
       if(debug) camera.drawDot(i, (height - 1) - (int) (hue / 1800.0 * (height - 1)), true);
-      if (huefound) {
-        if(debug) {
-          hueString.insert(0, String.format("%03.0f ", hue));
-          satString.insert(0, String.format("%.2f ", sat).substring(1));
-          valString.insert(0, String.format("%.2f ", val).substring(1));
-        }
-        if(notConeCountdown == notConeTolerance) {
+      if (hueFound){
+        if(notConeCountdown == notConeTolerance){
+          if(debug) {
+            hueString.insert(0, String.format("%03.0f ", hue));
+            satString.insert(0, String.format("%.2f ", sat).substring(1));
+            valString.insert(0, String.format("%.2f ", val).substring(1));
+          }
+
           leftSideCone = i;
         } else notConeCountdown++;
       }else{
@@ -445,13 +443,9 @@ public class RooksLegacySmartMove extends LinearOpMode {
       double hue = hsv[0];
       double sat = hsv[1];
       double val = hsv[2];
-
-      for (int index = 0; index < hueRanges.length; index++) {
-        if (hueRange(hue, hueRanges[index].fst, hueRanges[index].snd) && sat > 0.5 && val > 0.8) huefound=true;
-      }
-
+      for (Pair<Float, Float> hueRange: hueRanges) if (hueRange(hue, hueRange.fst, hueRange.snd) && sat > 0.3) hueFound = true;
       if(debug) camera.drawDot(i, (height - 1) - (int) (hue / 1800.0 * (height - 1)), true);
-      if(huefound) {
+      if (hueFound) {
         if(notConeCountdown == notConeTolerance){
           if(debug) {
             hueString.append(String.format("%03.0f ", hue));
