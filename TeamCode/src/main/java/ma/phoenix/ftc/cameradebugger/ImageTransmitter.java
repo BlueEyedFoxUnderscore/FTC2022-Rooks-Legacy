@@ -29,7 +29,8 @@ public class ImageTransmitter {
 
         Log.d("x","ImageTransmitter ImageType: " + type.name());
         {
-            Log.d("ImageTransmitter","width: "+width + "height: "+height);
+            Log.d("x","width: "+width);
+            Log.d("x","height: "+height);
 
             int i;
             int j=0;
