@@ -176,9 +176,9 @@ public class RooksLegacySmartMove extends LinearOpMode {
             requestedLinearYTranslation = gamepad1.left_stick_y  * 0.25f;
             requestedRadialTranslation  = gamepad1.right_stick_x * 0.25f;
           } else if (liftPosition == 5) {
-            requestedLinearXTranslation = gamepad1.left_stick_x  * 0.75f;
-            requestedLinearYTranslation = gamepad1.left_stick_y  * 0.75f;
-            requestedRadialTranslation  = gamepad1.right_stick_x * 0.75f;
+            requestedLinearXTranslation = gamepad1.left_stick_x  * 0.5f;
+            requestedLinearYTranslation = gamepad1.left_stick_y  * 0.5f;
+            requestedRadialTranslation  = gamepad1.right_stick_x * 0.5f;
           } else {
             requestedLinearXTranslation = gamepad1.left_stick_x  * 1f;
             requestedLinearYTranslation = gamepad1.left_stick_y  * 1f;
